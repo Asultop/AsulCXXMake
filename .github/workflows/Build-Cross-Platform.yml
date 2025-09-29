@@ -165,13 +165,15 @@ jobs:
         # 尝试使用i686编译器
         $compiler32 = "i686-w64-mingw32-g++"
         try {
-          & $compiler32 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK
+          & $compiler32 AsulCXXMake.cpp -o build/AMake-GBK.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK
+          & $compiler32 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
           Write-Host "使用i686编译器编译成功"
         } catch {
           Write-Host "i686编译器失败，尝试其他方法..."
           # 备用：使用g++ with -m32
           try {
-            & g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32
+            & g++ AsulCXXMake.cpp -o build/AMake-GBK.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32
+            & g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -m32
             Write-Host "使用g++ -m32编译成功"
           } catch {
             Write-Host "所有32位编译方法都失败"
@@ -187,7 +189,8 @@ jobs:
         
         $compiler64 = "x86_64-w64-mingw32-g++"
         try {
-          & $compiler64 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
+          & $compiler64 AsulCXXMake.cpp -o build/AMake-GBK.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
+          & $compiler64 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
           Write-Host "64位编译成功"
         } catch {
           Write-Host "64位编译失败: $($_.Exception.Message)"
