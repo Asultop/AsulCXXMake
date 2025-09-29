@@ -8,59 +8,113 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.host }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          # Ubuntu x64
+          - host: ubuntu-latest
+            target: x86_64-ubuntu
+            arch: x64
+            compiler: g++
+          # Ubuntu arm64
+          - host: ubuntu-latest
+            target: arm64-ubuntu
+            arch: arm64
+            compiler: aarch64-linux-gnu-g++
+          # Windows x86 (32位)
+          - host: windows-latest
+            target: x86-windows
+            arch: x86
+            compiler: i686-w64-mingw32-g++
+          # Windows x64 (64位)
+          - host: windows-latest
+            target: x64-windows
+            arch: x64
+            compiler: x86_64-w64-mingw32-g++
+          # macOS x64
+          - host: macos-latest
+            target: x64-macos
+            arch: x64
+            compiler: g++
+          # macOS arm64 (M1/M2等)
+          - host: macos-latest
+            target: arm64-macos
+            arch: arm64
+            compiler: g++
+
     steps:
     - name: 检出代码
       uses: actions/checkout@v4
- 
-    - name: 配置 Linux 环境 (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
+
+    - name: 配置 Ubuntu 构建环境
+      if: startsWith(matrix.host, 'ubuntu')
       run: |
         sudo apt-get update
         sudo apt-get install -y g++
-        
-    - name: 配置 macOS 环境
-      if: matrix.os == 'macos-latest'
+        # 安装arm64交叉编译工具链
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        fi
+
+    - name: 配置 Windows 构建环境
+      if: startsWith(matrix.host, 'windows')
+      run: |
+        # 安装MinGW交叉编译工具链
+        choco install mingw -y
+        if ("${{ matrix.arch }}" -eq "x86") {
+          choco install mingw-w64-i686 -y
+        } else {
+          choco install mingw-w64-x86_64 -y
+        }
+
+    - name: 配置 macOS 构建环境
+      if: startsWith(matrix.host, 'macos')
       run: |
         brew install gcc
-        
-    - name: 配置 Windows 环境
-      if: matrix.os == 'windows-latest'
-      run: |
-        choco install mingw -y
-        
+        # 对于ARM架构，确保使用正确的编译目标
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          brew install aarch64-elf-gcc
+        fi
+
     - name: 创建暂存区
       run: |
         mkdir -p build
-        
-    - name: 构建项目 Windows
-      if: matrix.os == 'windows-latest'
+
+    - name: 构建 Ubuntu 项目
+      if: startsWith(matrix.host, 'ubuntu')
       run: |
-        g++ AsulCXXMake.cpp -o AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
+          ${{ matrix.arch == 'arm64' ? '' : '-static-libgcc -static-libstdc++' }} \
+          -finput-charset=UTF-8
+        cp ./AMake ./build/
+
+    - name: 构建 Windows 项目
+      if: startsWith(matrix.host, 'windows')
+      run: |
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 \
+          -static -finput-charset=UTF-8 -fexec-charset=GBK
         copy AMake.exe build/
-        
-    - name: 构建项目 Ubuntu
-      if: matrix.os == 'ubuntu-latest'
+
+    - name: 构建 macOS 项目
+      if: startsWith(matrix.host, 'macos')
       run: |
-        g++ AsulCXXMake.cpp -o AMake -std=c++17 -static-libgcc -static-libstdc++
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
+          ${{ matrix.arch == 'arm64' ? '-target arm64-apple-macos11' : '' }} \
+          -finput-charset=UTF-8
         cp ./AMake ./build/
-        
-    - name: 构建项目 MacOS
-      if: matrix.os == 'macos-latest'
-      run: |
-        g++ AsulCXXMake.cpp -o AMake -std=c++17
-        cp ./AMake ./build/
-        
-    - name: 运行测试（可选）
+
+    - name: 运行测试（仅在原生架构上）
+      if: matrix.host == 'ubuntu-latest' && matrix.arch == 'x64' || 
+          matrix.host == 'windows-latest' && matrix.arch == 'x64' ||
+          matrix.host == 'macos-latest' && matrix.arch == 'x64'
       run: |
         cd build
-        ./AMake --version || .\AMake.exe --version
-        
+        ${{ startsWith(matrix.host, 'windows') ? '.\AMake.exe --version' : './AMake --version' }}
+
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
       with:
-        name: AMake-build-${{ matrix.os }}
+        name: AMake-build-${{ matrix.target }}
         path: "build/"
+    
