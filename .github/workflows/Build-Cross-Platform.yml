@@ -109,7 +109,7 @@ jobs:
     - name: 构建 Windows 项目 (x86)
       if: startsWith(matrix.host, 'windows') && matrix.arch == 'x86'
       run: |
-        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK -m32
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32
         copy AMake.exe build/
     - name: 构建 Windows 项目 (x64)
       if: startsWith(matrix.host, 'windows') && matrix.arch == 'x64'
