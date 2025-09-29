@@ -64,15 +64,18 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y g++
-        # 安装arm64交叉编译工具链和模拟器
+        # 安装arm64交叉编译工具链、模拟器和系统库
         if [ "${{ matrix.arch }}" = "arm64" ]; then
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user
+          # 安装ARM64基础库
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y libc6:arm64 libstdc++6:arm64
         fi
 
     - name: 配置 Windows 构建环境
       if: startsWith(matrix.host, 'windows')
       run: |
-        # 修复MinGW安装问题
         if ("${{ matrix.arch }}" -eq "x86") {
           choco install -y mingw --x86
         } else {
@@ -110,7 +113,9 @@ jobs:
       if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'arm64'
       run: |
         ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
-          -finput-charset=UTF-8
+          -finput-charset=UTF-8 \
+          -L/usr/aarch64-linux-gnu/lib \
+          -I/usr/aarch64-linux-gnu/include
         cp ./AMake ./build/
 
     - name: 构建 Windows 项目 (x86)
