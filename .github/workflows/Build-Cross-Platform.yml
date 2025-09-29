@@ -1,0 +1,71 @@
+name: Build-Cross-Platform
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+ 
+    - name: 配置 Linux 环境 (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y g++
+
+    - name: 配置 macOS 环境
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install g++ -y
+
+    - name: 配置 Windows 环境
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install mingw -y
+
+
+    - name: 创建暂存区
+      run: |
+        mkdir -p build
+    - name: 构建项目 Windows
+      if: matrix.os == 'windows-latest'
+      run: |
+        g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++11
+    - name: 构建项目 Ubuntu
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        g++ AsulCXXMake.cpp -o build/AMake -std=c++11
+    - name: 构建项目 MacOS
+      if: matrix.os == 'macos-latest'
+      run: |
+        g++ AsulCXXMake.cpp -o build/AMake -std=c++11
+
+
+    - name: 运行测试（可选）
+      run: |
+        cd build
+        ./AMake || .\AMake.exe 
+
+    - name: 打包构建产物
+      run: |
+        # 根据平台创建不同的压缩包
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          7z a output-${{ matrix.os }}.zip build/*
+        else
+          zip -r output-${{ matrix.os }}.zip build/*
+        fi
+
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: AMake-build-${{ matrix.os }}
+        path: output-${{ matrix.os }}.zip
