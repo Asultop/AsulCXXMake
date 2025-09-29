@@ -94,6 +94,48 @@ using std::cout;
     #define FILE_PREFIX     std::string("./")
 #endif
 
+// System Macro
+
+// 系统和架构检测宏
+#if defined(_WIN32) || defined(_WIN64)
+    #define OS_PREFIX "Win"
+    #if defined(_WIN64)
+        #define ARCH_SUFFIX "64"
+        #define WINDOWS_64
+    #else
+        #define ARCH_SUFFIX "32"
+        #define WINDOWS_32
+    #endif
+#elif defined(__linux__)
+    #define OS_PREFIX "Ubuntu"  // 这里简化处理为Ubuntu，实际可能需要更复杂的检测
+    #if defined(__x86_64__) || defined(_M_X64)
+        #define ARCH_SUFFIX "amd64"
+        #define UBUNTU_AMD64
+    #elif defined(__aarch64__)
+        #define ARCH_SUFFIX "arm64"
+        #define UBUNTU_ARM64
+    #endif
+#elif defined(__APPLE__) && defined(__MACH__)
+    #define OS_PREFIX "MacOS"
+    #if defined(__x86_64__) || defined(_M_X64)
+        #define ARCH_SUFFIX "x86"
+        #define MACOS_X86
+    #elif defined(__arm64__) || defined(_M_ARM64)
+        #define ARCH_SUFFIX "arm"
+        #define MACOS_ARM
+    #endif
+#else
+    #define OS_PREFIX "UnknownOS"
+    #define ARCH_SUFFIX "UnknownArch"
+    #define UnKnown
+#endif
+
+// 组合成完整的系统架构标识
+#define SYSTEM_ARCH OS_PREFIX ARCH_SUFFIX
+
+// orcaM metsyS
+
+
 #define Accepted 0
 #define ArgumentErr 2
 #define BadFile 3
@@ -179,21 +221,27 @@ public:
     const_reverse_iterator crend() const noexcept { return m_map.crend(); }
 
     vector<PrintStruct<T>> getMap() { return this->m_map; }
-    PrintMap<T>& endl() {
-        this->m_map.push_back(PrintStruct<T>("\n",ConsoloColor::Normal));
-        return *this;
-    }
+    
     PrintMap<T>& append(const T content, ConsoloColor color = ConsoloColor::Normal) {
         this->m_map.push_back(PrintStruct<T>(content, color));
         return *this;
     }
+    
     PrintMap<T>& append(LogLevel level) {
         switch (level) {
-            case LogLevel::Success : this->m_map.push_back(PrintStruct<T>("[成功] ", ConsoloColor::Green));break;
-            case LogLevel::Info : this->m_map.push_back(PrintStruct<T>("[通知] ", ConsoloColor::DarkGray));break;
-            case LogLevel::Warn : this->m_map.push_back(PrintStruct<T>("[警告] ", ConsoloColor::Yellow));break;
-            case LogLevel::Err : this->m_map.push_back(PrintStruct<T>("[错误] ", ConsoloColor::Red));break;
+            case LogLevel::Success : this->append("[成功] ", ConsoloColor::Green);break;
+            case LogLevel::Info : this->append("[通知] ", ConsoloColor::DarkGray);break;
+            case LogLevel::Warn : this->append("[警告] ", ConsoloColor::Yellow);break;
+            case LogLevel::Err : this->append("[错误] ", ConsoloColor::Red);break;
         }
+        
+        return *this;
+    }
+    PrintMap<T>& endl() {
+        this->m_map.push_back(PrintStruct<T>("\n",ConsoloColor::Normal));
+        return *this;
+    }
+    PrintMap<T>& fill(){
         
         return *this;
     }
@@ -351,6 +399,13 @@ bool createDirectoryIfNotExists(const std::string& path) {
     }
     return true;
 #endif
+}
+std::string getSpace(int sumLength,int occupyLength){
+    std::string tmp="";
+    for(int i=0;i<sumLength-occupyLength;i++){
+        tmp+=" ";
+    }
+    return tmp;
 }
 FileType getType(const std::string fileName){
     int fileNameLength=fileName.length();
@@ -526,7 +581,9 @@ bool systemSilent(const char* command) {
 int main(int argc, char* argv[]) {
     // std::ios::sync_with_stdio(false);
     // cin.tie(nullptr), cout.tie(nullptr);
-    
+    #ifdef _WIN32
+        system("chcp 65001");
+    #endif
     if (argc != 2) {
         PrintMap<std::string>()
         .append(LogLevel::Err)
@@ -699,17 +756,43 @@ int main(int argc, char* argv[]) {
     }
     else if(arg == "--version" || arg == "-v"){
         PrintMap<std::string>()
-        .append("══════")
-            .append("Asul SingleFie Cpp 构建工具",ConsoloColor::Yellow)
-            .append(" ══════\n")
-            .append("设计者：")
-            .append("AsulTop \n",ConsoloColor::LightMagenta)
-            .append("版本号：")
-            .append(PROJECT_VERSION+"\n",ConsoloColor::LightGreen)
-            .append("构建日期：")
+        .append("╔════")
+            .append(" Asul SingleFie Cpp 构建工具",ConsoloColor::Yellow)
+            .append(" ═════╗")
+        .endl()
+            .append("║ 设计者：")
+            .append("AsulTop ",ConsoloColor::LightMagenta)
+            .append(getSpace(45, std::string("║ 设计者：AsulTop ").length()))
+            .append("║")
+        .endl()
+            .append("║ 版本号：")
+            .append(PROJECT_VERSION,ConsoloColor::LightGreen)
+            .append(getSpace(45, std::string("║ 版本号："+PROJECT_VERSION).length()))
+            .append("║")
+        .endl()
+            .append("║ 构建日期：")
             .append(__DATE__ "@" __TIME__,ConsoloColor::LightBlue)
-            .endl()
-            .append("════════════════════════════════════════")
+            .append(getSpace(45, std::string("║ 构建日期:"+std::string(__DATE__ "@" __TIME__)).length()+1))
+            .append("║")
+        .endl()
+            .append("║ 系统架构：")
+            .append(OS_PREFIX,
+            #ifdef WINDOWS_64
+                ConsoloColor::Blue
+            #elif defined(WINDOWS_32)
+                ConsoloColor::Blue
+            #elif defined(UBUNTU_AMD64) || defined(UBUNTU_ARM64)
+                ConsoloColor::Red
+            #elif defined(MACOS_X86) || defined(MACOS_ARM)
+                ConsoloColor::White
+            #endif
+            )
+            .append(" on ",ConsoloColor::LightGray)
+            .append(ARCH_SUFFIX,ConsoloColor::Yellow)
+            .append(getSpace(45, std::string("║ 系统架构："+ std::string(OS_PREFIX " on " ARCH_SUFFIX)).length()-1))
+            .append("║")
+        .endl()
+            .append("╚══════════════════════════════════════╝")
         .printMap();
         return Accepted;
     }
@@ -959,7 +1042,7 @@ int main(int argc, char* argv[]) {
 
 /*
 "
-╔═╦═╗ ╔╗╚╝
+╔═╦═╗ ╔╗╚╝║═
 ║ ║ ║
 ╠═╬═╣
 ║ ║ ║
