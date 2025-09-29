@@ -289,10 +289,10 @@ std::pair<bool,std::string> getFileModificationTime(const std::string& filePath)
     SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stLocal);
 
     char timeStr[256];
-    sprintf_s(timeStr, "%04d-%02d-%02d %02d:%02d:%02d",
+    sprintf(timeStr, "%04d-%02d-%02d %02d:%02d:%02d",
         stLocal.wYear, stLocal.wMonth, stLocal.wDay,
         stLocal.wHour, stLocal.wMinute, stLocal.wSecond);
-    return std::string(timeStr);
+    return {true,timeStr};
 #else
     struct stat fileInfo;
     if (stat(filePath.c_str(), &fileInfo) != 0) {
