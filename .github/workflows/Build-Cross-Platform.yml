@@ -25,19 +25,19 @@ jobs:
             arch: arm64
             compiler: aarch64-linux-gnu-g++
             exe: qemu-aarch64 ./AMake
-            testable: false
+            testable: true
           # Windows x86 (32位)
           - host: windows-latest
             target: x86-windows
             arch: x86
-            compiler: g++
+            compiler: i686-w64-mingw32-g++
             exe: .\AMake.exe
             testable: true
           # Windows x64 (64位)
           - host: windows-latest
             target: x64-windows
             arch: x64
-            compiler: g++
+            compiler: x86_64-w64-mingw32-g++
             exe: .\AMake.exe
             testable: true
           # macOS x64
@@ -68,18 +68,23 @@ jobs:
         if [ "${{ matrix.arch }}" = "arm64" ]; then
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user
         fi
+
     - name: 配置 Windows 构建环境
       if: startsWith(matrix.host, 'windows')
       run: |
-        # 修复MinGW安装问题
+        # 安装适用于32位和64位的MinGW-w64
+        choco install -y mingw-w64
+        # 确认安装路径并添加到PATH
         if ("${{ matrix.arch }}" -eq "x86") {
-          choco install -y mingw --x86
+          $mingwPath = "C:\Program Files (x86)\mingw-w64\i686-8.1.0-posix-dwarf-rt_v6-rev0\mingw32\bin"
         } else {
-          choco install -y mingw
+          $mingwPath = "C:\Program Files\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64\bin"
         }
-        # 将MinGW添加到PATH
-        echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw32\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "添加MinGW路径: $mingwPath"
+        echo "$mingwPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        # 验证路径是否正确添加
+        Get-Content $env:GITHUB_PATH
+
     - name: 配置 macOS 构建环境
       if: startsWith(matrix.host, 'macos')
       run: |
@@ -87,12 +92,15 @@ jobs:
         if [ "${{ matrix.arch }}" = "arm64" ]; then
           brew install aarch64-elf-gcc
         fi
+
     - name: 验证编译器
       run: |
         ${{ matrix.compiler }} --version
+
     - name: 创建暂存区
       run: |
         mkdir -p build
+
     - name: 构建 Ubuntu 项目 (x64)
       if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'x64'
       run: |
@@ -100,22 +108,31 @@ jobs:
           -static-libgcc -static-libstdc++ \
           -finput-charset=UTF-8
         cp ./AMake ./build/
+
     - name: 构建 Ubuntu 项目 (arm64)
       if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'arm64'
       run: |
         ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
           -finput-charset=UTF-8
         cp ./AMake ./build/
+
     - name: 构建 Windows 项目 (x86)
       if: startsWith(matrix.host, 'windows') && matrix.arch == 'x86'
       run: |
-        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK -m32
-        copy AMake.exe build/
+        # 明确指定32位编译参数
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o build/AMake.exe -std=c++17 \
+          -static -static-libgcc -static-libstdc++ \
+          -finput-charset=UTF-8 -fexec-charset=GBK \
+          -m32
+
     - name: 构建 Windows 项目 (x64)
       if: startsWith(matrix.host, 'windows') && matrix.arch == 'x64'
       run: |
-        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK -m64
-        copy AMake.exe build/
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o build/AMake.exe -std=c++17 \
+          -static -static-libgcc -static-libstdc++ \
+          -finput-charset=UTF-8 -fexec-charset=GBK \
+          -m64
+
     - name: 构建 macOS 项目 (x64)
       if: startsWith(matrix.host, 'macos') && matrix.arch == 'x64'
       run: |
@@ -123,6 +140,7 @@ jobs:
           -arch x86_64 \
           -finput-charset=UTF-8
         cp ./AMake ./build/
+
     - name: 构建 macOS 项目 (arm64)
       if: startsWith(matrix.host, 'macos') && matrix.arch == 'arm64'
       run: |
@@ -131,11 +149,13 @@ jobs:
           -target arm64-apple-macos11 \
           -finput-charset=UTF-8
         cp ./AMake ./build/
+
     - name: 运行测试
       if: matrix.testable
       run: |
         cd build
         ${{ matrix.exe }} --version
+
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
       with:
