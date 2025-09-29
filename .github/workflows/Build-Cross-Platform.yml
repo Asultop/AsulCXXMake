@@ -21,42 +21,44 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y g++
-
+        
     - name: 配置 macOS 环境
       if: matrix.os == 'macos-latest'
       run: |
         brew install gcc
-
+        
     - name: 配置 Windows 环境
       if: matrix.os == 'windows-latest'
       run: |
         choco install mingw -y
-
-
+        
     - name: 创建暂存区
       run: |
         mkdir -p build
+        
     - name: 构建项目 Windows
       if: matrix.os == 'windows-latest'
       run: |
-        g++ AsulCXXMake.cpp -o AMake.exe -std=c++17
+        g++ AsulCXXMake.cpp -o AMake.exe -std=c++17 -static
         copy AMake.exe build/
+        
     - name: 构建项目 Ubuntu
       if: matrix.os == 'ubuntu-latest'
       run: |
-        g++ AsulCXXMake.cpp -o AMake -std=c++17
+        g++ AsulCXXMake.cpp -o AMake -std=c++17 -static-libgcc -static-libstdc++
         cp ./AMake ./build/
+        
     - name: 构建项目 MacOS
       if: matrix.os == 'macos-latest'
       run: |
         g++ AsulCXXMake.cpp -o AMake -std=c++17
         cp ./AMake ./build/
-
+        
     - name: 运行测试（可选）
       run: |
         cd build
         ./AMake --version || .\AMake.exe --version
-
+        
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
       with:
