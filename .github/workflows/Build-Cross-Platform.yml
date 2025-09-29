@@ -40,17 +40,17 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         g++ AsulCXXMake.cpp -o AMake.exe -std=c++17
-        copy AMake.exe Build/
+        copy AMake.exe build/
     - name: 构建项目 Ubuntu
       if: matrix.os == 'ubuntu-latest'
       run: |
         g++ AsulCXXMake.cpp -o AMake -std=c++17
-        cp ./AMake ./Build/
+        cp ./AMake ./build/
     - name: 构建项目 MacOS
       if: matrix.os == 'macos-latest'
       run: |
         g++ AsulCXXMake.cpp -o AMake -std=c++17
-        cp ./AMake ./Build/
+        cp ./AMake ./build/
 
     - name: 运行测试（可选）
       run: |
@@ -61,4 +61,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: AMake-build-${{ matrix.os }}
-        path: "build"
+        path: "build/"
