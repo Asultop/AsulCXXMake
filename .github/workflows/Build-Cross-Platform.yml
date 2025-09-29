@@ -20,12 +20,12 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc
+        sudo apt-get install -y g++
 
     - name: 配置 macOS 环境
       if: matrix.os == 'macos-latest'
       run: |
-        brew install g++ 
+        brew install gcc
 
     - name: 配置 Windows 环境
       if: matrix.os == 'windows-latest'
