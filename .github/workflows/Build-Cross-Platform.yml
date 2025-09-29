@@ -53,7 +53,7 @@ jobs:
     - name: 运行测试（可选）
       run: |
         cd build
-        ./AMake || .\AMake.exe 
+        ./AMake --version || .\AMake.exe --version
 
     - name: 打包构建产物
       run: |
