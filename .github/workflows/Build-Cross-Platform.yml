@@ -72,7 +72,7 @@ jobs:
     - name: 配置 Windows 构建环境
       if: startsWith(matrix.host, 'windows')
       run: |
-        # 修复MinGW安装问题，使用更可靠的包
+        # 修复MinGW安装问题
         if ("${{ matrix.arch }}" -eq "x86") {
           choco install -y mingw --x86
         } else {
@@ -86,7 +86,6 @@ jobs:
       if: startsWith(matrix.host, 'macos')
       run: |
         brew install gcc
-        # 对于ARM架构，确保使用正确的编译目标
         if [ "${{ matrix.arch }}" = "arm64" ]; then
           brew install aarch64-elf-gcc
         fi
@@ -117,17 +116,13 @@ jobs:
     - name: 构建 Windows 项目 (x86)
       if: startsWith(matrix.host, 'windows') && matrix.arch == 'x86'
       run: |
-        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 \
-          -static -finput-charset=UTF-8 -fexec-charset=GBK \
-          -m32
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK -m32
         copy AMake.exe build/
 
     - name: 构建 Windows 项目 (x64)
       if: startsWith(matrix.host, 'windows') && matrix.arch == 'x64'
       run: |
-        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 \
-          -static -finput-charset=UTF-8 -fexec-charset=GBK \
-          -m64
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK -m64
         copy AMake.exe build/
 
     - name: 构建 macOS 项目 (x64)
