@@ -39,7 +39,7 @@ jobs:
     - name: 构建项目 Windows
       if: matrix.os == 'windows-latest'
       run: |
-        g++ AsulCXXMake.cpp -o AMake.exe -std=c++17 -static
+        g++ AsulCXXMake.cpp -o AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
         copy AMake.exe build/
         
     - name: 构建项目 Ubuntu
