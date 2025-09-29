@@ -81,11 +81,18 @@ jobs:
       run: |
         mkdir -p build
 
-    - name: 构建 Ubuntu 项目
-      if: startsWith(matrix.host, 'ubuntu')
+    - name: 构建 Ubuntu 项目 (x64)
+      if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'x64'
       run: |
         ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
-          ${{ matrix.arch == 'arm64' ? '' : '-static-libgcc -static-libstdc++' }} \
+          -static-libgcc -static-libstdc++ \
+          -finput-charset=UTF-8
+        cp ./AMake ./build/
+
+    - name: 构建 Ubuntu 项目 (arm64)
+      if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'arm64'
+      run: |
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
           -finput-charset=UTF-8
         cp ./AMake ./build/
 
@@ -96,21 +103,38 @@ jobs:
           -static -finput-charset=UTF-8 -fexec-charset=GBK
         copy AMake.exe build/
 
-    - name: 构建 macOS 项目
-      if: startsWith(matrix.host, 'macos')
+    - name: 构建 macOS 项目 (x64)
+      if: startsWith(matrix.host, 'macos') && matrix.arch == 'x64'
       run: |
         ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
-          ${{ matrix.arch == 'arm64' ? '-target arm64-apple-macos11' : '' }} \
           -finput-charset=UTF-8
         cp ./AMake ./build/
 
-    - name: 运行测试（仅在原生架构上）
-      if: matrix.host == 'ubuntu-latest' && matrix.arch == 'x64' || 
-          matrix.host == 'windows-latest' && matrix.arch == 'x64' ||
-          matrix.host == 'macos-latest' && matrix.arch == 'x64'
+    - name: 构建 macOS 项目 (arm64)
+      if: startsWith(matrix.host, 'macos') && matrix.arch == 'arm64'
+      run: |
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
+          -target arm64-apple-macos11 \
+          -finput-charset=UTF-8
+        cp ./AMake ./build/
+
+    - name: 运行测试 (Ubuntu x64)
+      if: matrix.host == 'ubuntu-latest' && matrix.arch == 'x64'
       run: |
         cd build
-        ${{ startsWith(matrix.host, 'windows') ? '.\AMake.exe --version' : './AMake --version' }}
+        ./AMake --version
+
+    - name: 运行测试 (Windows x64)
+      if: matrix.host == 'windows-latest' && matrix.arch == 'x64'
+      run: |
+        cd build
+        .\AMake.exe --version
+
+    - name: 运行测试 (macOS x64)
+      if: matrix.host == 'macos-latest' && matrix.arch == 'x64'
+      run: |
+        cd build
+        ./AMake --version
 
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
