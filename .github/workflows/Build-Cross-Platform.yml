@@ -55,14 +55,14 @@ jobs:
         cd build
         ./AMake --version || .\AMake.exe --version
 
-    - name: 打包构建产物
+    - name: 打包构建产物 Windows
+      if: matrix.os == 'windows-latest'
+      run: | 
+        7z a output-${{ matrix.os }}.zip build/*
+    - name: 打包构建产物 Linux/MacOS
+      if: matrix.os != 'windows-latest'
       run: |
-        # 根据平台创建不同的压缩包
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          7z a output-${{ matrix.os }}.zip build/*
-        else
           zip -r output-${{ matrix.os }}.zip build/*
-        fi
 
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
