@@ -39,15 +39,15 @@ jobs:
     - name: 构建项目 Windows
       if: matrix.os == 'windows-latest'
       run: |
-        g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++11
+        g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++17
     - name: 构建项目 Ubuntu
       if: matrix.os == 'ubuntu-latest'
       run: |
-        g++ AsulCXXMake.cpp -o build/AMake -std=c++11
+        g++ AsulCXXMake.cpp -o build/AMake -std=c++17
     - name: 构建项目 MacOS
       if: matrix.os == 'macos-latest'
       run: |
-        g++ AsulCXXMake.cpp -o build/AMake -std=c++11
+        g++ AsulCXXMake.cpp -o build/AMake -std=c++17
 
 
     - name: 运行测试（可选）
