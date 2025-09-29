@@ -1,5 +1,5 @@
 #define PROJECT_NAME std::string("AMake")
-#define PROJECT_VERSION std::string("alpha-v0.1")
+#define PROJECT_VERSION std::string("alpha-v0.1.1")
 
 #include <sstream>
 #include <fstream>
@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
+#include <filesystem>
 
 #ifdef _WIN32
     #include <windows.h>
@@ -47,36 +48,49 @@ using std::cout;
 #define OUTPUT(x) std::string("-o "+x+EXE_SUFFIX+" ")
 
 #ifdef _WIN32
-    #define CMD_REMOVE      std::string("del /q /f ")
+    #define CMD_REMOVE_FOLDER_WINSPEC std::string("rd")// 这个宏仅在 Win 下被定义
+    #define CMD_REMOVE      std::string("del ")
+    #define RM_FILE         CMD_REMOVE + std::string("/q /f ")
+    #define RM_FOLDER       CMD_REMOVE_FOLDER_WINSPEC + std::string("/s /q ")
     #define CMD_COPY        std::string("copy /y ")
     #define INSTALL_DIR     std::string("C:\\Program Files\\"+PROJECT_NAME)
     #define INSTALL_PATH    std::string(INSTALL_DIR+"\\"+PROJECT_NAME+".exe")
     #define EXE_SUFFIX      std::string(".exe") 
     #define LAST_BUILD_INFO ".cache\\Last.build"
+    #define CACHE_TIME_INFO ".cache\\Last.build.stamp"
     #define FILE_PREFIX     std::string("")
 #elif defined(__APPLE__) && defined(__MACH__)
-    #define CMD_REMOVE      std::string("rm -f ")
+    #define CMD_REMOVE      std::string("rm ")
+    #define RM_FILE         CMD_REMOVE + std::string("-f ")
+    #define RM_FOLDER       CMD_REMOVE + std::string("-f -R ")
     #define CMD_COPY        std::string("cp -f ")
     #define INSTALL_DIR     std::string("/usr/local/bin")
     #define INSTALL_PATH    std::string(INSTALL_DIR+"/"+PROJECT_NAME)
     #define EXE_SUFFIX      std::string("")
     #define LAST_BUILD_INFO ".cache/Last.build"
+    #define CACHE_TIME_INFO ".cache/Last.build.stamp"
     #define FILE_PREFIX     std::string("./")
 #elif defined(__linux__)
-    #define CMD_REMOVE      std::string("rm -f ")
+    #define CMD_REMOVE      std::string("rm ")
+    #define RM_FILE         CMD_REMOVE + std::string("-f ")
+    #define RM_FOLDER       CMD_REMOVE + std::string("-f -R ")
     #define CMD_COPY        std::string("cp -f ")
-    #define INSTALL_DIR    std::string("/usr/bin")
+    #define INSTALL_DIR    std::string("/usr/local/bin")
     #define INSTALL_PATH    std::string(INSTALL_DIR+"/"+PROJECT_NAME)
     #define EXE_SUFFIX      std::string("")
     #define LAST_BUILD_INFO ".cache/Last.build"
+    #define CACHE_TIME_INFO ".cache/Last.build.stamp"
     #define FILE_PREFIX     std::string("./")
 #else
-    #define CMD_REMOVE      std::string("rm -f ")
+    #define CMD_REMOVE      std::string("rm ")
+    #define RM_FILE         CMD_REMOVE + std::string("-f ")
+    #define RM_FOLDER       CMD_REMOVE + std::string("-f -R ")
     #define CMD_COPY        std::string("cp -f ")
-    #define INSTALL_DIR    std::string("/usr/bin")
+    #define INSTALL_DIR    std::string("/usr/local/bin")
     #define INSTALL_PATH    std::string(INSTALL_DIR+"/"+PROJECT_NAME)
     #define EXE_SUFFIX      std::string("")
     #define LAST_BUILD_INFO ".cache/Last.build"
+    #define CACHE_TIME_INFO ".cache/Last.build.stamp"
     #define FILE_PREFIX     std::string("./")
 #endif
 
@@ -121,6 +135,12 @@ typedef enum{
     Err
 } LogLevel;
 
+typedef enum{
+    Y,
+    N,
+    None
+} DefaultCase;
+
 template<typename T>
 struct PrintStruct{
     const T content;
@@ -159,15 +179,15 @@ public:
     const_reverse_iterator crend() const noexcept { return m_map.crend(); }
 
     vector<PrintStruct<T>> getMap() { return this->m_map; }
-    PrintMap<T>* endl() {
+    PrintMap<T>& endl() {
         this->m_map.push_back(PrintStruct<T>("\n",ConsoloColor::Normal));
-        return this;
+        return *this;
     }
-    PrintMap<T>* append(const T content, ConsoloColor color = ConsoloColor::Normal) {
+    PrintMap<T>& append(const T content, ConsoloColor color = ConsoloColor::Normal) {
         this->m_map.push_back(PrintStruct<T>(content, color));
-        return this;
+        return *this;
     }
-    PrintMap<T>* append(LogLevel level) {
+    PrintMap<T>& append(LogLevel level) {
         switch (level) {
             case LogLevel::Success : this->m_map.push_back(PrintStruct<T>("[成功] ", ConsoloColor::Green));break;
             case LogLevel::Info : this->m_map.push_back(PrintStruct<T>("[通知] ", ConsoloColor::DarkGray));break;
@@ -175,7 +195,16 @@ public:
             case LogLevel::Err : this->m_map.push_back(PrintStruct<T>("[错误] ", ConsoloColor::Red));break;
         }
         
-        return this;
+        return *this;
+    }
+    PrintMap<T>& askYN(DefaultCase dCase) {
+        switch (dCase) {
+            case DefaultCase::Y : this->m_map.push_back(PrintStruct<T>("(Y/" + std::string(UNDERLINE) + "N" + std::string(RESET) +"):",ConsoloColor::Normal)); break;
+            case DefaultCase::N : this->m_map.push_back(PrintStruct<T>("(" + std::string(UNDERLINE) + "Y" + std::string(RESET) + "/N):",ConsoloColor::Normal)); break;
+            case DefaultCase::None : this->m_map.push_back(PrintStruct<T>("(Y/N)",ConsoloColor::Normal)); break;
+        }
+        
+        return *this;
     }
     void printMap(bool lineBreak=true){
         print(*this,lineBreak);
@@ -240,7 +269,44 @@ void printSucc(const T content, ConsoloColor color = ConsoloColor::Normal) {
 bool fileExist(const char* name) {
     return !access(name, F_OK);
 }
+bool folderExist(const std::string& path) {
+    return std::filesystem::is_directory(std::filesystem::path(path));
+}
+std::pair<bool,std::string> getFileModificationTime(const std::string& filePath) {
+#ifdef _WIN32
+    HANDLE hFile = CreateFileA(filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return {false,"无法打开文件"};
+    }
+    FILETIME ftCreate, ftAccess, ftWrite;
+    if (!GetFileTime(hFile, &ftCreate, &ftAccess, &ftWrite)) {
+        CloseHandle(hFile);
+        return {false,"获取文件时间失败"};
+    }
+    CloseHandle(hFile);
+    SYSTEMTIME stUTC, stLocal;
+    FileTimeToSystemTime(&ftWrite, &stUTC);
+    SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stLocal);
 
+    char timeStr[256];
+    sprintf_s(timeStr, "%04d-%02d-%02d %02d:%02d:%02d",
+        stLocal.wYear, stLocal.wMonth, stLocal.wDay,
+        stLocal.wHour, stLocal.wMinute, stLocal.wSecond);
+    return std::string(timeStr);
+#else
+    struct stat fileInfo;
+    if (stat(filePath.c_str(), &fileInfo) != 0) {
+        return {false,"无法获取文件信息"};
+    }
+    struct tm* localTime = localtime(&fileInfo.st_mtime);
+    if (localTime == nullptr) {
+        return {false,"时间转换失败"};
+    }
+    char timeStr[256];
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", localTime);
+    return {true,std::string(timeStr)};
+#endif
+}
 std::string getFileContent(const char* fileName) {
     std::ifstream file(fileName, std::ios::binary);
     if (!file.is_open()) {
@@ -317,25 +383,39 @@ bool build(const std::string projectNameSource){
     std::string cmd = CPP_COMPILER + COMPILER_FLAGS + projectName + SUFFIX + " " + OUTPUT(projectName) ;
     PrintMap<std::string>()
     .append(LogLevel::Info)
-    ->append("执行构建命令：")
-    ->append(cmd,ConsoloColor::LightGray)
-    ->printMap();
+    .append("执行构建命令：")
+    .append(cmd,ConsoloColor::LightGray)
+    .printMap();
 
     if(system(cmd.c_str()) == 0){
+        auto fileStampStatus = getFileModificationTime(projectNameSource);
+        if(fileStampStatus.first==false){
+            printWarn("获取文件修改时间错误！\n");
+        }else{
+            auto writeReturn=writeToFile(CACHE_TIME_INFO,fileStampStatus.second);
+            if(!writeReturn.first){
+                PrintMap<std::string>()
+                .append(LogLevel::Warn)
+                    .append("无法写入缓存文件 :")
+                    .append(writeReturn.second,ConsoloColor::LightGray)
+                .printMap();
+	        }
+        }
+        
         PrintMap<std::string>()
         .append(LogLevel::Success)
-        ->append("构建 ")
-        ->append(projectName,ConsoloColor::Yellow)
-        ->append(" 完成")
-        ->printMap();
+        .append("构建 ")
+        .append(projectName,ConsoloColor::Yellow)
+        .append(" 完成")
+        .printMap();
         return true;
     }
     else PrintMap<std::string>()
         .append(LogLevel::Err)
-        ->append("构建 ")
-        ->append(projectName,ConsoloColor::Yellow)
-        ->append(" 时出现问题")
-        ->printMap();
+        .append("构建 ")
+        .append(projectName,ConsoloColor::Yellow)
+        .append(" 时出现问题")
+        .printMap();
     return false;
 }
 
@@ -344,41 +424,90 @@ int run(const std::string projectNameSource){
     FileType fileType=getType(projectNameSource);
     std::string inStream="",outStream="";
     std::string projectName=getPureContent(projectNameSource);
-
+    if(fileExist(getPureContent((projectName + EXE_SUFFIX)).c_str()) && fileExist(CACHE_TIME_INFO)){
+        std::string lastStamp;
+        try {
+            lastStamp = getFileContent(CACHE_TIME_INFO);
+        } catch (const std::runtime_error& e) {
+            printErr(e.what());
+            print("\n");
+            return BadFile;
+        } 
+        auto fileStampStatus=getFileModificationTime(projectNameSource);
+        if(!fileStampStatus.first){
+            printWarn("获取文件修改时间错误！\n");
+        }
+        if(fileStampStatus.second != lastStamp){
+            PrintMap<std::string>()
+            .append(LogLevel::Info)
+                .append("源代码 ")
+                .append(projectNameSource,ConsoloColor::Yellow)
+                .append(" 似乎已修改但未编译，是否立刻编译？")
+            .endl()
+            .append(LogLevel::Info)
+                .append("上次编译时间: ").append(lastStamp,ConsoloColor::LightGray)
+            .endl()
+                .askYN(DefaultCase::N)
+            .printMap(false);
+            char getIn=getchar();
+            int buildReturnStatus=-1;
+            switch(getIn){
+                case 'Y' :
+                case 'y' : 
+                case '\n':
+                    buildReturnStatus=build(projectNameSource);break;
+                default:
+                case 'N' :
+                case 'n' :
+                    break;
+            }
+            if(buildReturnStatus==0) return BuildErr;
+        } else {
+            PrintMap<std::string>()
+            .append(LogLevel::Info)
+                .append("上次编译时间: ").append(lastStamp,ConsoloColor::LightGray)
+            .printMap();
+        }
+    }
     if(fileExist((projectName+FILE_IN_SUFFIX).c_str())) inStream = " < "+projectName+FILE_IN_SUFFIX;
     if(fileExist((projectName+FILE_OUT_SUFFIX).c_str())) outStream = " > "+projectName+FILE_OUT_SUFFIX;
     std::string cmd=FILE_PREFIX+projectName+EXE_SUFFIX+" "+inStream+" "+outStream;
+
     PrintMap<std::string>()
     .append(LogLevel::Info)
-    ->append("执行运行命令 : ")
-    ->append(cmd,ConsoloColor::LightGray)
-    ->append("\n====== ")
-    ->append(projectName+" 开始",ConsoloColor::Yellow)
-    ->append(" ======")
-    ->printMap();
+        .append("执行运行命令 : ")
+        .append(cmd,ConsoloColor::LightGray)
+    .endl()
+        .append("╔═════ ")
+        .append(projectName+" 开始",ConsoloColor::Yellow)
+        .append(" ══════╗")
+    .endl()
+    .printMap();
     
     int returnCode=system(cmd.c_str());
     if(returnCode == 0){
         PrintMap<std::string>()
-        .append("\n====== ")
-        ->append(projectName+" 结束",ConsoloColor::Yellow)
-        ->append(" ======\n")
-        ->append(LogLevel::Success)
-        ->append(projectName,ConsoloColor::Yellow)
-        ->append(" 正常退出")
-        
-        ->printMap();
+        .endl()
+            .append("╚═════ ")
+            .append(projectName+" 结束",ConsoloColor::Yellow)
+            .append(" ══════╝")
+        .endl()
+            .append(LogLevel::Success)
+            .append(projectName,ConsoloColor::Yellow)
+            .append(" 正常退出 (Return 0;)")
+        .printMap();
         return Accepted;
     }
     else PrintMap<std::string>()
-        .append("====== ")
-        ->append(projectName+" 结束",ConsoloColor::Yellow)
-        ->append(" ======\n")
-        ->append(LogLevel::Warn)
-        ->append(projectName,ConsoloColor::Yellow)
-        ->append(" 退出码: ")
-        ->append(std::to_string(returnCode),ConsoloColor::Red)
-        ->printMap();
+            .append("╚═════ ")
+            .append(projectName+" 结束",ConsoloColor::Yellow)
+            .append(" ══════╝")
+        .endl()
+            .append(LogLevel::Warn)
+            .append(projectName,ConsoloColor::Yellow)
+            .append(" 退出码: ")
+            .append(std::to_string(returnCode),ConsoloColor::Red)
+        .printMap();
     return returnCode;
 }
 
@@ -393,6 +522,7 @@ bool systemSilent(const char* command) {
 }
 
 
+
 int main(int argc, char* argv[]) {
     // std::ios::sync_with_stdio(false);
     // cin.tie(nullptr), cout.tie(nullptr);
@@ -400,15 +530,15 @@ int main(int argc, char* argv[]) {
     if (argc != 2) {
         PrintMap<std::string>()
         .append(LogLevel::Err)
-            ->append("参数应有")
-            ->append(" 1 ", ConsoloColor::DarkGray)
-            ->append("个，而这里出现 ")
-            ->append(std::to_string(argc - 1), ConsoloColor::DarkGray)
-            ->append(" 个 \n")
-            ->append("\t使用 ")
-            ->append("-h 或 --help", ConsoloColor::Yellow)
-            ->append(" 查看帮助信息")
-            ->printMap();
+            .append("参数应有")
+            .append(" 1 ", ConsoloColor::DarkGray)
+            .append("个，而这里出现 ")
+            .append(std::to_string(argc - 1), ConsoloColor::DarkGray)
+            .append(" 个 \n")
+            .append("\t使用 ")
+            .append("-h 或 --help", ConsoloColor::Yellow)
+            .append(" 查看帮助信息")
+            .printMap();
         return ArgumentErr;
     }
     std::string arg = argv[1];
@@ -421,13 +551,13 @@ int main(int argc, char* argv[]) {
 	if(!hasCXXCompiler && arg != "--env"){
 		PrintMap<std::string>()
 		.append(LogLevel::Err)
-			->append("未检测到环境中的编译器!")
-		->endl()
-		->append(LogLevel::Info)
-			->append("使用 ")
-			->append(FILE_PREFIX + PROJECT_NAME + EXE_SUFFIX + " --env",ConsoloColor::Yellow)
-			->append("来检测并修复环境")
-		->printMap();
+			.append("未检测到环境中的编译器!")
+		.endl()
+		.append(LogLevel::Info)
+			.append("使用 ")
+			.append(FILE_PREFIX + PROJECT_NAME + EXE_SUFFIX + " --env",ConsoloColor::Yellow)
+			.append("来检测并修复环境")
+		.printMap();
 		// return CompilerErr;
 	}
     
@@ -487,12 +617,12 @@ int main(int argc, char* argv[]) {
                 if(!elevatorAdmin){
                     PrintMap<std::string>()
                     .append(LogLevel::Warn)
-                        ->append("未检测到管理员权限，安装 ")
-                        ->append(PROJECT_NAME,ConsoloColor::Yellow)
-                        ->append("@",ConsoloColor::LightBlue)
-                        ->append(PROJECT_VERSION,ConsoloColor::LightGreen)
-                        ->append(" 可能无效！")
-                    ->printMap();
+                        .append("未检测到管理员权限，安装 ")
+                        .append(PROJECT_NAME,ConsoloColor::Yellow)
+                        .append("@",ConsoloColor::LightBlue)
+                        .append(PROJECT_VERSION,ConsoloColor::LightGreen)
+                        .append(" 可能无效！")
+                    .printMap();
                     return PermissionErr;
                 }else{
 					return Accepted;
@@ -510,10 +640,10 @@ int main(int argc, char* argv[]) {
 				if(systemSilent(std::string(CMD_REMOVE + fullFilePath).c_str()) != 0){
 					PrintMap<std::string>()
 					.append(LogLevel::Err)
-						->append("删除 ")
-						->append(fullFilePath, ConsoloColor::Yellow)
-						->append("出错 ")
-					->printMap();
+						.append("删除 ")
+						.append(fullFilePath, ConsoloColor::Yellow)
+						.append("出错 ")
+					.printMap();
 					system("pause");
 					return EnvErr;
 				}
@@ -523,18 +653,18 @@ int main(int argc, char* argv[]) {
 			if(system(cmd.c_str()) == 0){
 				PrintMap<std::string>()
 				.append(LogLevel::Success)
-					->append("安装到 ")
-					->append(winSysDir+"\\"+PROJECT_NAME+EXE_SUFFIX,ConsoloColor::LightGray)
-				->printMap();
+					.append("安装到 ")
+					.append(winSysDir+"\\"+PROJECT_NAME+EXE_SUFFIX,ConsoloColor::LightGray)
+				.printMap();
 				system("pause");
 				return Accepted;
 			} else {
 				PrintMap<std::string>()
 				.append(LogLevel::Err)
-					->append("安装失败，请提升至")
-					->append("管理员权限",ConsoloColor::Yellow)
-					->append("重试")
-				->printMap();
+					.append("安装失败，请提升至")
+					.append("管理员权限",ConsoloColor::Yellow)
+					.append("重试")
+				.printMap();
 				return EnvErr;
 			}
         #else
@@ -542,25 +672,25 @@ int main(int argc, char* argv[]) {
             if(!createDirectoryIfNotExists(INSTALL_DIR)){
                 PrintMap<std::string>()
                 .append(LogLevel::Err)
-	                ->append("无法创建文件夹 :")
-	                ->append(INSTALL_DIR,ConsoloColor::LightGray)
-	            ->printMap();
+	                .append("无法创建文件夹 :")
+	                .append(INSTALL_DIR,ConsoloColor::LightGray)
+	            .printMap();
                 return EnvErr;
             }
             if(system(cmd.c_str())==0){
                 PrintMap<std::string>()
                 .append(LogLevel::Success)
-                    ->append("已安装到 ")
-                    ->append(INSTALL_PATH,ConsoloColor::Yellow)
-                ->printMap();
+                    .append("已安装到 ")
+                    .append(INSTALL_PATH,ConsoloColor::Yellow)
+                .printMap();
             	return Accepted;
             }else{
                 PrintMap<std::string>()
                 .append(LogLevel::Err)
-                    ->append("无法安装，请使用")
-                    ->append(" sudo ",ConsoloColor::Yellow)
-                    ->append("提升权限！")
-                ->printMap();
+                    .append("无法安装，请使用")
+                    .append(" sudo ",ConsoloColor::Yellow)
+                    .append("提升权限！")
+                .printMap();
                 return PermissionErr;
             }
         #endif
@@ -569,62 +699,62 @@ int main(int argc, char* argv[]) {
     }
     else if(arg == "--version" || arg == "-v"){
         PrintMap<std::string>()
-        .append("===== ")
-            ->append("Asul SingleFie Cpp 构建工具",ConsoloColor::Yellow)
-            ->append(" =====\n")
-            ->append("设计者：")
-            ->append("AsulTop \n",ConsoloColor::LightMagenta)
-            ->append("版本号：")
-            ->append(PROJECT_VERSION+"\n",ConsoloColor::LightGreen)
-            ->append("构建日期：")
-            ->append(__DATE__ "@" __TIME__,ConsoloColor::LightBlue)
-            ->endl()
-            ->append("=======================================")
-        ->printMap();
+        .append("══════")
+            .append("Asul SingleFie Cpp 构建工具",ConsoloColor::Yellow)
+            .append(" ══════\n")
+            .append("设计者：")
+            .append("AsulTop \n",ConsoloColor::LightMagenta)
+            .append("版本号：")
+            .append(PROJECT_VERSION+"\n",ConsoloColor::LightGreen)
+            .append("构建日期：")
+            .append(__DATE__ "@" __TIME__,ConsoloColor::LightBlue)
+            .endl()
+            .append("════════════════════════════════════════")
+        .printMap();
         return Accepted;
     }
     else if(arg == "--help" || arg == "-h") {
         PrintMap<std::string>()
-        .append("===== ", ConsoloColor::LightBlue)
-            ->append("Asul SingleFile Cpp 构建工具 - 帮助文档", ConsoloColor::Yellow)
-            ->append(" =====", ConsoloColor::LightBlue)
-        ->endl()
-            ->append("功能：", ConsoloColor::LightGreen)
-            ->append("\n\t自动化编译、运行单个C++文件，支持构建记录管理（如清理/重新编译）", ConsoloColor::Normal)
-        ->endl()
-            ->append("格式：", ConsoloColor::LightGreen)
-            ->append("\n\t"+std::string(argv[0])+EXE_SUFFIX+" [参数/命令]", ConsoloColor::LightGray)
-        ->endl()
-            ->append("参数：", ConsoloColor::LightGreen)
-            ->append("\n\t-h / --help\t", ConsoloColor::Yellow)
-            ->append("查看本帮助文档", ConsoloColor::Normal)
-            ->append("\n\t-v / --version\t", ConsoloColor::Yellow)
-            ->append("查看工具版本信息（开发者、版本号、构建日期）", ConsoloColor::Normal)
-            ->append("\n\t--install\t", ConsoloColor::Yellow)
-            ->append("将本工具安装到 "+INSTALL_PATH+" 当中", ConsoloColor::Normal)
-            ->append("\n\t--dev\t\t", ConsoloColor::Yellow)
-			->append("使用本工具尝试修复C/C++环境", ConsoloColor::Normal)
-        ->endl()
-            ->append("命令：", ConsoloColor::LightGreen)
-            ->append("\n\tclear\t\t", ConsoloColor::Yellow)
-            ->append("清理上次构建生成的可执行文件", ConsoloColor::Normal)
-            ->append("\n\tmake\t\t", ConsoloColor::Yellow)
-            ->append("基于上次构建记录（.cache/Last.build）重新编译项目", ConsoloColor::Normal)
-            ->append("\n\trun\t\t", ConsoloColor::Yellow)
-            ->append("运行上次构建的可执行文件（未构建则提示是否编译）", ConsoloColor::Normal)
-            ->append("\n\tremake\t\t", ConsoloColor::Yellow)
-            ->append("重新编译并自动运行上次构建的项目（等价于 make + run）", ConsoloColor::Normal)
-            ->append("\n\tstatus\t\t", ConsoloColor::Yellow)
-            ->append("查看上一次项目", ConsoloColor::Normal)
-        ->endl()
-            ->append("示例：", ConsoloColor::LightGreen)
-            ->append("\n\t示例1：编译运行 test.cpp 文件")
-            ->append("\n\t\t"+std::string(argv[0])+" test.cpp", ConsoloColor::LightGray)
-            ->append("\t（工具会自动生成 test 可执行文件并运行）")
-            ->append("\n\t示例2：运行上次构建的项目")
-            ->append("\n\t\t"+std::string(argv[0])+" run", ConsoloColor::LightGray)
-            ->append("\t（若上次构建文件不存在，会提示是否重新编译）")
-        ->printMap();
+        .append("═════ ", ConsoloColor::LightBlue)
+            .append("Asul SingleFile Cpp 构建工具 - 帮助文档", ConsoloColor::Yellow)
+            .append(" ═════", ConsoloColor::LightBlue)
+        .endl()
+            .append("功能：", ConsoloColor::LightGreen)
+            .append("\n\t自动化编译、运行单个C++文件，支持构建记录管理（如清理/重新编译）", ConsoloColor::Normal)
+        .endl()
+            .append("格式：", ConsoloColor::LightGreen)
+            .append("\n\t"+std::string(argv[0])+EXE_SUFFIX+" [参数/命令]", ConsoloColor::LightGray)
+        .endl()
+            .append("参数：", ConsoloColor::LightGreen)
+            .append("\n\t-h / --help\t", ConsoloColor::Yellow)
+            .append("查看本帮助文档", ConsoloColor::Normal)
+            .append("\n\t-v / --version\t", ConsoloColor::Yellow)
+            .append("查看工具版本信息（开发者、版本号、构建日期）", ConsoloColor::Normal)
+            .append("\n\t--install\t", ConsoloColor::Yellow)
+            .append("将本工具安装到 "+INSTALL_PATH+" 当中", ConsoloColor::Normal)
+            .append("\n\t--dev\t\t", ConsoloColor::Yellow)
+			.append("使用本工具尝试修复C/C++环境", ConsoloColor::Normal)
+        .endl()
+            .append("命令：", ConsoloColor::LightGreen)
+            .append("\n\tclear\t\t", ConsoloColor::Yellow)
+            .append("清理上次构建生成的可执行文件", ConsoloColor::Normal)
+            .append("\n\tmake\t\t", ConsoloColor::Yellow)
+            .append("基于上次构建记录"+ std::string(LAST_BUILD_INFO) +"重新编译项目", ConsoloColor::Normal)
+            .append("\n\trun\t\t", ConsoloColor::Yellow)
+            .append("运行上次构建的可执行文件（未构建则提示是否编译）", ConsoloColor::Normal)
+            .append("\n\tremake\t\t", ConsoloColor::Yellow)
+            .append("重新编译并自动运行上次构建的项目（等价于 make + run）", ConsoloColor::Normal)
+            .append("\n\tstatus\t\t", ConsoloColor::Yellow)
+            .append("查看上一次项目", ConsoloColor::Normal)
+        .endl()
+            .append("示例：", ConsoloColor::LightGreen)
+            .append("\n\t示例1：编译运行 test.cpp 文件")
+            .append("\n\t\t"+std::string(argv[0])+" test.cpp", ConsoloColor::LightGray)
+            .append("\t（工具会自动生成 test 可执行文件并运行）")
+            .append("\n\t示例2：运行上次构建的项目")
+            .append("\n\t\t"+std::string(argv[0])+" run", ConsoloColor::LightGray)
+            .append("\t（若上次构建文件不存在，会提示是否重新编译）")
+        .printMap();
         return Accepted;
     }
     else if(arg == "--env"){
@@ -638,19 +768,21 @@ int main(int argc, char* argv[]) {
     else if((arg.length()>=1 && arg[0] == '-' ) ||arg.length()>=2 && (arg[0] == '-' && arg[1] == '-')){
         PrintMap<std::string>()
         .append(LogLevel::Warn)
-            ->append(arg,ConsoloColor::Yellow)
-            ->append(" ：看起来这似乎是一个选项，仍要将其当作源文件吗?\n(Y/" + std::string(UNDERLINE) + "N" + std::string(RESET) +") :")
-            ->printMap(false);
-            char getIn=getchar();
-            switch(getIn){
-                case 'Y' :
-                case 'y' : break;
-                default:
-                case 'N' :
-                case 'n' :
-                    printInfo("用户已取消 \n");
-                    return Accepted;
-            }
+            .append(arg,ConsoloColor::Yellow)
+            .append(" ：看起来这似乎是一个选项，仍要将其当作源文件吗?")
+        .endl()
+            .askYN(DefaultCase::N)
+        .printMap(false);
+        char getIn=getchar();
+        switch(getIn){
+            case 'Y' :
+            case 'y' : break;
+            default:
+            case 'N' :
+            case 'n' :
+                printInfo("用户已取消 \n");
+                return Accepted;
+        }
     }
 
     std::string lastBuild = "";
@@ -665,36 +797,53 @@ int main(int argc, char* argv[]) {
         } 
     }
     if (arg == "clear") {
-        if (lastBuild.empty()) {
-            printInfo("无上次构建记录，无需清理\n");
-            return BuildErr;
-        }
-        if (!fileExist(lastBuild.c_str())){
-            printInfo("构建文件不存在，无需清理\n");
+        std::string lastBuildName = getPureContent(lastBuild);
+        if (!folderExist(CACHE_DIR_NAME)) {
+            PrintMap<std::string>()
+            .append(LogLevel::Info)
+                .append("无上次构建记录，无需清理 ")
+                .append(CACHE_DIR_NAME,ConsoloColor::Yellow)
+            .printMap();
             return Accepted;
         }
-        std::string cmd = CMD_COPY + FILE_PREFIX + lastBuild + EXE_SUFFIX;
+        // if (!fileExist(lastBuild.c_str())){
+        //     printInfo("构建文件不存在，无需清理\n");
+        //     return Accepted;
+        // }
+        std::string cmd_rm_build_file = RM_FILE + FILE_PREFIX + lastBuildName + EXE_SUFFIX;
+        std::string cmd_rm_cache_dir = RM_FOLDER + FILE_PREFIX + CACHE_DIR_NAME;
+        int errCount = 0;
+        if (folderExist(FILE_PREFIX + CACHE_DIR_NAME)){
+            PrintMap<std::string>()
+            .append("执行清理命令 : ")
+                .append(cmd_rm_cache_dir,ConsoloColor::LightGray)
+            .printMap();
+            errCount += systemSilent(cmd_rm_cache_dir.c_str());
+        }
+        if (fileExist(lastBuildName.c_str())){
+            PrintMap<std::string>()
+            .append("执行清理命令：")
+                .append(cmd_rm_build_file,ConsoloColor::LightGray)
+            .printMap();
 
-        PrintMap<std::string>()
-        .append("执行清理命令 : ")
-        	->append(cmd,ConsoloColor::LightGray)
-        ->printMap();
-
-        if(systemSilent(cmd.c_str()) == 0)
+            errCount += systemSilent(cmd_rm_build_file.c_str());
+        }
+        if(errCount == 0){
             PrintMap<std::string>()
             .append(LogLevel::Success)
-	            ->append("清理 ")
-	            ->append(lastBuild,ConsoloColor::Yellow)
-	            ->append(" 完成")
-            ->printMap();
-        else PrintMap<std::string>()
-            .append(LogLevel::Err)
-	            ->append("清理 ")
-	            ->append(lastBuild,ConsoloColor::Yellow)
-	            ->append(" 时发生[错误]")
-            ->printMap();
-        
-        return Accepted;
+	            .append("清理存在的项目：")
+	            .append(lastBuildName,ConsoloColor::Yellow)
+	            .append(" 完成")
+            .printMap();
+            return Accepted;
+        }
+        PrintMap<std::string>()
+            .append(LogLevel::Warn)
+	            .append("清理完成，但出现 ")
+                .append(std::to_string(errCount),ConsoloColor::Red)
+                .append(" 个错误！")
+            .printMap();
+        return BadFile;
     }
     else if (arg == "make"){
         if (lastBuild.empty()) {
@@ -715,10 +864,10 @@ int main(int argc, char* argv[]) {
         }else{
             PrintMap<std::string>()
             .append(LogLevel::Warn)
-	            ->append("暂未构建 ")
-	            ->append(lastBuild,ConsoloColor::Yellow)
-	            ->append(" 是否立刻构建？\n(Y/"+std::string(UNDERLINE) + "N" + std::string(RESET) +"): ")
-            ->printMap(false);
+	            .append("暂未构建 ")
+	            .append(lastBuild,ConsoloColor::Yellow)
+	            .append(" 是否立刻构建？\n(Y/"+std::string(UNDERLINE) + "N" + std::string(RESET) +"): ")
+            .printMap(false);
             char getIn=getchar();
             switch (getIn) {
                 case 'y' :
@@ -740,10 +889,10 @@ int main(int argc, char* argv[]) {
         }
         if(!fileExist(lastBuild.c_str())) PrintMap<std::string>()
                                         .append(LogLevel::Warn)
-                                        ->append("不存在构建文件，此时推荐使用")
-                                        ->append(" make ",ConsoloColor::Yellow)
-                                        ->append("命令，以减少[错误]警报！")
-                                        ->printMap();
+                                        .append("不存在构建文件，此时推荐使用")
+                                        .append(" make ",ConsoloColor::Yellow)
+                                        .append("命令，以减少[错误]警报！")
+                                        .printMap();
         if(!build(lastBuild)) return BuildErr;
         return run(lastBuild);
     }
@@ -754,18 +903,18 @@ int main(int argc, char* argv[]) {
         }
         PrintMap<std::string>()
         .append(LogLevel::Success)
-            ->append("上次构建的项目：")
-            ->append(lastBuild)
-        ->printMap();
+            .append("上次构建的项目：")
+            .append(lastBuild)
+        .printMap();
         return Accepted;
     }
     
     if(getType(arg)!=FileType::C && getType(arg)!=FileType::CPP){
         PrintMap<std::string>()
         .append(LogLevel::Err)
-            ->append(arg,ConsoloColor::Yellow)
-            ->append(" 类型无效")
-        ->printMap();
+            .append(arg,ConsoloColor::Yellow)
+            .append(" 类型无效")
+        .printMap();
         return TypeErr;
     }
 
@@ -774,19 +923,19 @@ int main(int argc, char* argv[]) {
     if(!fileExist((targetProject).c_str())){
         PrintMap<std::string>()
         .append(LogLevel::Err)
-	        ->append("文件 ")
-	        ->append(targetProject,ConsoloColor::Yellow)
-	        ->append(" 不存在！")
-        ->printMap();
+	        .append("文件 ")
+	        .append(targetProject,ConsoloColor::Yellow)
+	        .append(" 不存在！")
+        .printMap();
         return BadFile;
     }
     
     if(!createDirectoryIfNotExists(CACHE_DIR_NAME)){
 		PrintMap<std::string>()
 		.append(LogLevel::Err)
-			->append("无法创建文件夹 :")
-			->append(CACHE_DIR_NAME,ConsoloColor::LightGray)
-		->printMap();
+			.append("无法创建文件夹 :")
+			.append(CACHE_DIR_NAME,ConsoloColor::LightGray)
+		.printMap();
 		return EnvErr;
 	};
 	
@@ -794,16 +943,26 @@ int main(int argc, char* argv[]) {
     if(!writeReturn.first){
 		PrintMap<std::string>()
 		.append(LogLevel::Warn)
-			->append("无法写入缓存文件 :")
-			->append(writeReturn.second,ConsoloColor::LightGray)
-		->printMap();
+			.append("无法写入缓存文件 :")
+			.append(writeReturn.second,ConsoloColor::LightGray)
+		.printMap();
 	}
 	
-    // if(!fileExist(getPureContent((arg + EXE_SUFFIX)).c_str()))
-    if(true)
+    if(!fileExist(getPureContent((arg + EXE_SUFFIX)).c_str()))
+    // if(true)
         if(!build(targetProject)) return BuildErr;
 	
     return run(targetProject);
 
 }
 // To-do : 配置清单 -> AMake/.config {targetLanguage:JSON}
+
+/*
+"
+╔═╦═╗ ╔╗╚╝
+║ ║ ║
+╠═╬═╣
+║ ║ ║
+╚═╩═╝
+
+*/
