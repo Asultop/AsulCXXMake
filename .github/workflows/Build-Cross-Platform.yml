@@ -26,7 +26,7 @@ jobs:
             compiler: aarch64-linux-gnu-g++
             exe: qemu-aarch64 ./AMake
             testable: false
-          # Windows x86 (32位) - 修复编译器配置
+          # Windows x86 (32位)
           - host: windows-latest
             target: x86-windows
             arch: x86
@@ -72,29 +72,16 @@ jobs:
     - name: 配置 Windows 构建环境
       if: startsWith(matrix.host, 'windows')
       run: |
-        # 使用更可靠的方法安装 MinGW-w64
+        # 使用更简单的方法安装 MinGW-w64
         if ("${{ matrix.arch }}" -eq "x86") {
           # 安装32位工具链
           choco install -y mingw --params="/InstallDir:C:/mingw32 /Architecture:x86"
+          echo "C:\mingw32\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
         } else {
           # 安装64位工具链
           choco install -y mingw --params="/InstallDir:C:/mingw64 /Architecture:x64"
-        }
-        # 添加MinGW到PATH
-        if ("${{ matrix.arch }}" -eq "x86") {
-          echo "C:\mingw32\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-        } else {
           echo "C:\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
         }
-
-    - name: 配置 Windows 构建环境 (备用方案)
-      if: startsWith(matrix.host, 'windows')
-      run: |
-        # 备用方案：使用预装的MinGW或直接下载
-        echo "检查系统MinGW..."
-        Get-Command g++ -ErrorAction SilentlyContinue
-        Get-Command i686-w64-mingw32-g++ -ErrorAction SilentlyContinue
-        Get-Command x86_64-w64-mingw32-g++ -ErrorAction SilentlyContinue
 
     - name: 配置 macOS 构建环境
       if: startsWith(matrix.host, 'macos')
@@ -106,26 +93,51 @@ jobs:
         # 安装GCC
         brew install gcc
 
-    - name: 验证编译器
+    - name: 验证编译器 (Linux/macOS)
+      if: startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos')
       run: |
-        # 尝试多种可能的编译器名称
-        if which ${{ matrix.compiler }} 2>/dev/null; then
-          ${{ matrix.compiler }} --version
-        else
-          echo "编译器 ${{ matrix.compiler }} 未找到，尝试寻找替代..."
-          # Windows环境下尝试常见编译器名称
-          if [ "${{ matrix.host }}" = "windows-latest" ]; then
-            if [ "${{ matrix.arch }}" = "x86" ]; then
-              i686-w64-mingw32-g++ --version || echo "i686编译器未找到"
-              g++ -m32 --version || echo "g++ -m32 失败"
-            else
-              x86_64-w64-mingw32-g++ --version || echo "x86_64编译器未找到"
-              g++ --version || echo "g++ 未找到"
-            fi
-          else
-            g++ --version || echo "g++ 未找到"
-          fi
-        fi
+        which ${{ matrix.compiler }} || echo "编译器 ${{ matrix.compiler }} 未找到"
+        ${{ matrix.compiler }} --version || echo "无法获取版本信息"
+
+    - name: 验证编译器 (Windows)
+      if: startsWith(matrix.host, 'windows')
+      shell: pwsh
+      run: |
+        # PowerShell 语法
+        $compiler = "${{ matrix.compiler }}"
+        Write-Host "查找编译器: $compiler"
+        
+        # 尝试直接运行编译器
+        try {
+          & $compiler --version
+          Write-Host "编译器找到并工作正常"
+        } catch {
+          Write-Host "编译器未找到或无法运行: $($_.Exception.Message)"
+          Write-Host "尝试寻找替代编译器..."
+          
+          # 检查常见位置
+          if (${{ matrix.arch }} -eq "x86") {
+            $potentialPaths = @(
+              "C:\mingw32\bin\i686-w64-mingw32-g++.exe",
+              "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw32\bin\i686-w64-mingw32-g++.exe",
+              "C:\msys64\mingw32\bin\i686-w64-mingw32-g++.exe"
+            )
+          } else {
+            $potentialPaths = @(
+              "C:\mingw64\bin\x86_64-w64-mingw32-g++.exe",
+              "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\x86_64-w64-mingw32-g++.exe",
+              "C:\msys64\mingw64\bin\x86_64-w64-mingw32-g++.exe"
+            )
+          }
+          
+          foreach ($path in $potentialPaths) {
+            if (Test-Path $path) {
+              Write-Host "找到编译器在: $path"
+              & $path --version
+              break
+            }
+          }
+        }
 
     - name: 创建构建目录
       run: |
@@ -146,19 +158,41 @@ jobs:
 
     - name: 构建 Windows 项目 (x86)
       if: startsWith(matrix.host, 'windows') && matrix.arch == 'x86'
+      shell: pwsh
       run: |
-        # 尝试多种编译方法
-        echo "尝试编译32位Windows程序..."
-        i686-w64-mingw32-g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK 2>&1 || echo "第一方法失败"
-        # 备用方法
-        if [ ! -f "build/AMake.exe" ]; then
-          g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32 2>&1 || echo "备用方法失败"
-        fi
+        Write-Host "编译32位Windows程序..."
+        
+        # 尝试使用i686编译器
+        $compiler32 = "i686-w64-mingw32-g++"
+        try {
+          & $compiler32 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK
+          Write-Host "使用i686编译器编译成功"
+        } catch {
+          Write-Host "i686编译器失败，尝试其他方法..."
+          # 备用：使用g++ with -m32
+          try {
+            & g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32
+            Write-Host "使用g++ -m32编译成功"
+          } catch {
+            Write-Host "所有32位编译方法都失败"
+            exit 1
+          }
+        }
 
     - name: 构建 Windows 项目 (x64)
       if: startsWith(matrix.host, 'windows') && matrix.arch == 'x64'
+      shell: pwsh
       run: |
-        x86_64-w64-mingw32-g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK 2>&1 || echo "64位编译失败"
+        Write-Host "编译64位Windows程序..."
+        
+        $compiler64 = "x86_64-w64-mingw32-g++"
+        try {
+          & $compiler64 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
+          Write-Host "64位编译成功"
+        } catch {
+          Write-Host "64位编译失败: $($_.Exception.Message)"
+          exit 1
+        }
 
     - name: 构建 macOS 项目 (x64)
       if: startsWith(matrix.host, 'macos') && matrix.arch == 'x64'
@@ -175,22 +209,49 @@ jobs:
           -target arm64-apple-macos11 \
           -finput-charset=UTF-8
 
-    - name: 检查构建结果
+    - name: 检查构建结果 (Linux/macOS)
+      if: startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos')
       run: |
         echo "构建目录内容:"
-        ls -la build/ || dir build/ 2>/dev/null || echo "构建目录为空"
-        if [ -f "build/AMake" ] || [ -f "build/AMake.exe" ]; then
+        ls -la build/
+        if [ -f "build/AMake" ]; then
           echo "构建成功!"
+          file build/AMake
         else
           echo "构建失败: 未找到可执行文件"
           exit 1
         fi
 
-    - name: 运行测试
-      if: matrix.testable
+    - name: 检查构建结果 (Windows)
+      if: startsWith(matrix.host, 'windows')
+      shell: pwsh
+      run: |
+        Write-Host "构建目录内容:"
+        Get-ChildItem build/ -ErrorAction SilentlyContinue
+        if (Test-Path "build/AMake.exe") {
+          Write-Host "构建成功!"
+        } else {
+          Write-Host "构建失败: 未找到可执行文件"
+          exit 1
+        }
+
+    - name: 运行测试 (Linux/macOS)
+      if: matrix.testable && (startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos'))
       run: |
         cd build
         ${{ matrix.exe }} --version || echo "测试执行失败"
+
+    - name: 运行测试 (Windows)
+      if: matrix.testable && startsWith(matrix.host, 'windows')
+      shell: pwsh
+      run: |
+        cd build
+        try {
+          & ${{ matrix.exe }} --version
+          Write-Host "测试执行成功"
+        } catch {
+          Write-Host "测试执行失败: $($_.Exception.Message)"
+        }
 
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
