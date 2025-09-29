@@ -48,7 +48,7 @@ using std::cout;
 #define OUTPUT(x) std::string("-o "+x+EXE_SUFFIX+" ")
 
 #ifdef _WIN32
-    #define CMD_REMOVE_FOLDER_WINSPEC std::string("rd")// 这个宏仅在 Win 下被定义
+    #define CMD_REMOVE_FOLDER_WINSPEC std::string("rd ")// 这个宏仅在 Win 下被定义
     #define CMD_REMOVE      std::string("del ")
     #define RM_FILE         CMD_REMOVE + std::string("/q /f ")
     #define RM_FOLDER       CMD_REMOVE_FOLDER_WINSPEC + std::string("/s /q ")
