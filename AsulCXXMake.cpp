@@ -581,9 +581,7 @@ bool systemSilent(const char* command) {
 int main(int argc, char* argv[]) {
     // std::ios::sync_with_stdio(false);
     // cin.tie(nullptr), cout.tie(nullptr);
-    #ifdef _WIN32
-        system("chcp 65001");
-    #endif
+
     if (argc != 2) {
         PrintMap<std::string>()
         .append(LogLevel::Err)
