@@ -30,7 +30,7 @@ jobs:
           - host: windows-latest
             target: x86-windows
             arch: x86
-            compiler: g++
+            compiler: x86_64-w64-mingw32-g++
             exe: .\AMake.exe
             testable: true
           # Windows x64 (64位)
