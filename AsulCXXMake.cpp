@@ -867,7 +867,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::string lastBuild = "";
-
+    
     if (fileExist(LAST_BUILD_INFO)) {
         try {
             lastBuild = getFileContent(LAST_BUILD_INFO);
@@ -940,13 +940,14 @@ int main(int argc, char* argv[]) {
             printErr("无上次构建记录，无法运行\n");
             return BuildErr;
         }
-        if(fileExist((lastBuild+EXE_SUFFIX).c_str())){
-            return run(lastBuild+EXE_SUFFIX); 
+        std::string lastBuildPure=getPureContent(lastBuild);
+        if(fileExist((lastBuildPure+EXE_SUFFIX).c_str())){
+            return run(lastBuild); 
         }else{
             PrintMap<std::string>()
             .append(LogLevel::Warn)
 	            .append("暂未构建 ")
-	            .append(lastBuild,ConsoloColor::Yellow)
+	            .append(lastBuildPure,ConsoloColor::Yellow)
 	            .append(" 是否立刻构建？\n(Y/"+std::string(UNDERLINE) + "N" + std::string(RESET) +"): ")
             .printMap(false);
             char getIn=getchar();
@@ -968,7 +969,9 @@ int main(int argc, char* argv[]) {
             printErr("无上次构建记录，无法重构\n");
             return BuildErr;
         }
-        if(!fileExist(lastBuild.c_str())) PrintMap<std::string>()
+        std::string lastBuildPure=getPureContent(lastBuild);
+
+        if(!fileExist(std::string(lastBuildPure + EXE_SUFFIX).c_str())) PrintMap<std::string>()
                                         .append(LogLevel::Warn)
                                         .append("不存在构建文件，此时推荐使用")
                                         .append(" make ",ConsoloColor::Yellow)
