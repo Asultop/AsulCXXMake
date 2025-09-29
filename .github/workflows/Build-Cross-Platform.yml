@@ -40,17 +40,17 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         g++ AsulCXXMake.cpp -o AMake.exe -std=c++17
-        copy AMake.exe Build/AMake.exe
+        copy AMake.exe Build/
     - name: 构建项目 Ubuntu
       if: matrix.os == 'ubuntu-latest'
       run: |
         g++ AsulCXXMake.cpp -o AMake -std=c++17
-        cp ./AMake ./Build/AMake
+        cp ./AMake ./Build/
     - name: 构建项目 MacOS
       if: matrix.os == 'macos-latest'
       run: |
         g++ AsulCXXMake.cpp -o AMake -std=c++17
-        cp ./AMake ./Build/AMake
+        cp ./AMake ./Build/
 
     - name: 运行测试（可选）
       run: |
