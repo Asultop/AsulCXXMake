@@ -17,31 +17,43 @@ jobs:
             target: x86_64-ubuntu
             arch: x64
             compiler: g++
+            exe: ./AMake
+            testable: true
           # Ubuntu arm64
           - host: ubuntu-latest
             target: arm64-ubuntu
             arch: arm64
             compiler: aarch64-linux-gnu-g++
+            exe: qemu-aarch64 ./AMake
+            testable: true
           # Windows x86 (32位)
           - host: windows-latest
             target: x86-windows
             arch: x86
-            compiler: i686-w64-mingw32-g++
+            compiler: g++
+            exe: .\AMake.exe
+            testable: true
           # Windows x64 (64位)
           - host: windows-latest
             target: x64-windows
             arch: x64
-            compiler: x86_64-w64-mingw32-g++
+            compiler: g++
+            exe: .\AMake.exe
+            testable: true
           # macOS x64
           - host: macos-latest
             target: x64-macos
             arch: x64
             compiler: g++
+            exe: ./AMake
+            testable: true
           # macOS arm64 (M1/M2等)
           - host: macos-latest
             target: arm64-macos
             arch: arm64
             compiler: g++
+            exe: ./AMake
+            testable: true
 
     steps:
     - name: 检出代码
@@ -52,21 +64,23 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y g++
-        # 安装arm64交叉编译工具链
+        # 安装arm64交叉编译工具链和模拟器
         if [ "${{ matrix.arch }}" = "arm64" ]; then
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user
         fi
 
     - name: 配置 Windows 构建环境
       if: startsWith(matrix.host, 'windows')
       run: |
-        # 安装MinGW交叉编译工具链
-        choco install mingw -y
+        # 修复MinGW安装问题，使用更可靠的包
         if ("${{ matrix.arch }}" -eq "x86") {
-          choco install mingw-w64-i686 -y
+          choco install -y mingw --x86
         } else {
-          choco install mingw-w64-x86_64 -y
+          choco install -y mingw
         }
+        # 将MinGW添加到PATH
+        echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw32\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: 配置 macOS 构建环境
       if: startsWith(matrix.host, 'macos')
@@ -76,6 +90,10 @@ jobs:
         if [ "${{ matrix.arch }}" = "arm64" ]; then
           brew install aarch64-elf-gcc
         fi
+
+    - name: 验证编译器
+      run: |
+        ${{ matrix.compiler }} --version
 
     - name: 创建暂存区
       run: |
@@ -96,17 +114,27 @@ jobs:
           -finput-charset=UTF-8
         cp ./AMake ./build/
 
-    - name: 构建 Windows 项目
-      if: startsWith(matrix.host, 'windows')
+    - name: 构建 Windows 项目 (x86)
+      if: startsWith(matrix.host, 'windows') && matrix.arch == 'x86'
       run: |
         ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 \
-          -static -finput-charset=UTF-8 -fexec-charset=GBK
+          -static -finput-charset=UTF-8 -fexec-charset=GBK \
+          -m32
+        copy AMake.exe build/
+
+    - name: 构建 Windows 项目 (x64)
+      if: startsWith(matrix.host, 'windows') && matrix.arch == 'x64'
+      run: |
+        ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake.exe -std=c++17 \
+          -static -finput-charset=UTF-8 -fexec-charset=GBK \
+          -m64
         copy AMake.exe build/
 
     - name: 构建 macOS 项目 (x64)
       if: startsWith(matrix.host, 'macos') && matrix.arch == 'x64'
       run: |
         ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
+          -arch x86_64 \
           -finput-charset=UTF-8
         cp ./AMake ./build/
 
@@ -114,27 +142,16 @@ jobs:
       if: startsWith(matrix.host, 'macos') && matrix.arch == 'arm64'
       run: |
         ${{ matrix.compiler }} AsulCXXMake.cpp -o AMake -std=c++17 \
+          -arch arm64 \
           -target arm64-apple-macos11 \
           -finput-charset=UTF-8
         cp ./AMake ./build/
 
-    - name: 运行测试 (Ubuntu x64)
-      if: matrix.host == 'ubuntu-latest' && matrix.arch == 'x64'
+    - name: 运行测试
+      if: matrix.testable
       run: |
         cd build
-        ./AMake --version
-
-    - name: 运行测试 (Windows x64)
-      if: matrix.host == 'windows-latest' && matrix.arch == 'x64'
-      run: |
-        cd build
-        .\AMake.exe --version
-
-    - name: 运行测试 (macOS x64)
-      if: matrix.host == 'macos-latest' && matrix.arch == 'x64'
-      run: |
-        cd build
-        ./AMake --version
+        ${{ matrix.exe }} --version
 
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
