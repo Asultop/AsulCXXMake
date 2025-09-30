@@ -1,4 +1,4 @@
-name: Build-Cross-Platform
+name:Push-Release-Build-Cross-Platform
 
 on:
   push:
@@ -140,7 +140,13 @@ jobs:
     - name: 创建构建目录
       run: |
         mkdir -p build
-
+    - name: 复制 CHANGELOG.md 文档
+      if: startsWith(matrix.host, 'ubuntu')
+      run: |
+        cp CHANGELOG.md ./build/
+      if: startsWith(matrix.host,'windows')
+      run: |
+        copy CHANGELOG.md build/
     - name: 构建 Ubuntu 项目 (x64)
       if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'x64'
       run: |
