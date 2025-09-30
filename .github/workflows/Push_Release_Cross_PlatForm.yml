@@ -1,4 +1,4 @@
-name:Push-Release-Build-Cross-Platform
+name: Push-Release-Build-Cross-Platform
 
 on:
   push:
