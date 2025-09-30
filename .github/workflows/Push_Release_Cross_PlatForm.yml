@@ -4,7 +4,8 @@ on:
   push:
     tags:
       - "v*"
-
+      - "alpha-*"
+      - "beta-*"
 jobs:
   build:
     runs-on: ${{ matrix.host }}
