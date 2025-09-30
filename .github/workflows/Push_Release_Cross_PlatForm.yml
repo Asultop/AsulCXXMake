@@ -11,48 +11,66 @@ jobs:
     strategy:
       matrix:
         include:
+          # Ubuntu x64: 产物名带 x86_64-ubuntu 标识
           - host: ubuntu-latest
             target: x86_64-ubuntu
             arch: x64
             compiler: g++
             cprun: cp
-            exe: ./AMake
+            exe-name: AMake-x86_64-ubuntu  # 可执行文件名称（带架构标识）
+            exe: ./build/AMake-x86_64-ubuntu
             testable: true
+            zip-name: AMake-x86_64-ubuntu.zip  # 最终压缩包名称
+          # Ubuntu arm64: 产物名带 arm64-ubuntu 标识
           - host: ubuntu-latest
             target: arm64-ubuntu
             arch: arm64
             compiler: aarch64-linux-gnu-g++
             cprun: cp
-            exe: qemu-aarch64 ./AMake
+            exe-name: AMake-arm64-ubuntu
+            exe: qemu-aarch64 ./build/AMake-arm64-ubuntu
             testable: false
+            zip-name: AMake-arm64-ubuntu.zip
+          # Windows x86: 产物名带 x86-windows 标识（.exe后缀）
           - host: windows-latest
             target: x86-windows
             arch: x86
             compiler: i686-w64-mingw32-g++
             cprun: copy
-            exe: .\AMake.exe
+            exe-name: AMake-x86-windows.exe
+            exe: ./build/AMake-x86-windows.exe
             testable: true
+            zip-name: AMake-x86-windows.zip
+          # Windows x64: 产物名带 x64-windows 标识（.exe后缀）
           - host: windows-latest
             target: x64-windows
             arch: x64
             compiler: x86_64-w64-mingw32-g++
             cprun: copy
-            exe: .\AMake.exe
+            exe-name: AMake-x64-windows.exe
+            exe: ./build/AMake-x64-windows.exe
             testable: true
+            zip-name: AMake-x64-windows.zip
+          # macOS x64: 产物名带 x64-macos 标识
           - host: macos-latest
             target: x64-macos
             arch: x64
             compiler: g++
             cprun: cp
-            exe: ./AMake
+            exe-name: AMake-x64-macos
+            exe: ./build/AMake-x64-macos
             testable: true
+            zip-name: AMake-x64-macos.zip
+          # macOS arm64: 产物名带 arm64-macos 标识
           - host: macos-latest
             target: arm64-macos
             arch: arm64
             compiler: g++
             cprun: cp
-            exe: ./AMake
+            exe-name: AMake-arm64-macos
+            exe: ./build/AMake-arm64-macos
             testable: true
+            zip-name: AMake-arm64-macos.zip
 
     steps:
       - name: 检出代码
@@ -62,7 +80,7 @@ jobs:
         if: startsWith(matrix.host, 'ubuntu')
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++
+          sudo apt-get install -y g++ zip
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user
           fi
@@ -70,6 +88,7 @@ jobs:
       - name: 配置 Windows 构建环境
         if: startsWith(matrix.host, 'windows')
         run: |
+          choco install -y mingw 7zip
           if ("${{ matrix.arch }}" -eq "x86") {
             choco install -y mingw --params="/InstallDir:C:/mingw32 /Architecture:x86"
             echo "C:\mingw32\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
@@ -83,7 +102,7 @@ jobs:
         run: |
           xcode-select --install 2>/dev/null || true
           which brew || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          brew install gcc
+          brew install gcc zip
 
       - name: 验证编译器 (Linux/macOS)
         if: startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos')
@@ -97,28 +116,16 @@ jobs:
         run: |
           $compiler = "${{ matrix.compiler }}"
           Write-Host "查找编译器: $compiler"
-          
           try {
             & $compiler --version
             Write-Host "编译器找到并工作正常"
           } catch {
             Write-Host "编译器未找到或无法运行: $($_.Exception.Message)"
-            Write-Host "尝试寻找替代编译器..."
-            
-            if (${{ matrix.arch }} -eq "x86") {
-              $potentialPaths = @(
-                "C:\mingw32\bin\i686-w64-mingw32-g++.exe",
-                "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw32\bin\i686-w64-mingw32-g++.exe",
-                "C:\msys64\mingw32\bin\i686-w64-mingw32-g++.exe"
-              )
+            $potentialPaths = if (${{ matrix.arch }} -eq "x86") {
+              @("C:\mingw32\bin\i686-w64-mingw32-g++.exe", "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw32\bin\i686-w64-mingw32-g++.exe")
             } else {
-              $potentialPaths = @(
-                "C:\mingw64\bin\x86_64-w64-mingw32-g++.exe",
-                "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\x86_64-w64-mingw32-g++.exe",
-                "C:\msys64\mingw64\bin\x86_64-w64-mingw32-g++.exe"
-              )
+              @("C:\mingw64\bin\x86_64-w64-mingw32-g++.exe", "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\x86_64-w64-mingw32-g++.exe")
             }
-            
             foreach ($path in $potentialPaths) {
               if (Test-Path $path) {
                 Write-Host "找到编译器在: $path"
@@ -128,41 +135,41 @@ jobs:
             }
           }
 
-      - name: 创建构建目录并复制CHANGELOG
+      # 创建构建目录，确保产物集中存放
+      - name: 初始化构建目录
         run: |
           mkdir -p build
           ${{ matrix.cprun }} ./CHANGELOG.md ./build/
 
+      # 1. Ubuntu 构建：直接生成带架构标识的可执行文件
       - name: 构建 Ubuntu 项目 (x64)
         if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'x64'
         run: |
-          ${{ matrix.compiler }} AsulCXXMake.cpp -o build/AMake -std=c++17 \
+          ${{ matrix.compiler }} AsulCXXMake.cpp -o build/${{ matrix.exe-name }} -std=c++17 \
             -static-libgcc -static-libstdc++ \
             -finput-charset=UTF-8
 
       - name: 构建 Ubuntu 项目 (arm64)
         if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'arm64'
         run: |
-          ${{ matrix.compiler }} AsulCXXMake.cpp -o build/AMake -std=c++17 \
+          ${{ matrix.compiler }} AsulCXXMake.cpp -o build/${{ matrix.exe-name }} -std=c++17 \
             -finput-charset=UTF-8
 
+      # 2. Windows 构建：生成带架构标识的 .exe（含GBK/UTF-8双版本）
       - name: 构建 Windows 项目 (x86)
         if: startsWith(matrix.host, 'windows') && matrix.arch == 'x86'
         shell: pwsh
         run: |
-          Write-Host "编译32位Windows程序..."
-          
           $compiler32 = "i686-w64-mingw32-g++"
           try {
-            & $compiler32 AsulCXXMake.cpp -o build/AMake-GBK.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK
-            & $compiler32 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
-            Write-Host "使用i686编译器编译成功"
+            # GBK编码版本：名称带 -GBK 后缀
+            & $compiler32 AsulCXXMake.cpp -o build/${{ matrix.exe-name }}-GBK -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK
+            # UTF-8编码版本：默认名称
+            & $compiler32 AsulCXXMake.cpp -o build/${{ matrix.exe-name }} -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
           } catch {
-            Write-Host "i686编译器失败，尝试其他方法..."
             try {
-              & g++ AsulCXXMake.cpp -o build/AMake-GBK.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32
-              & g++ AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -m32
-              Write-Host "使用g++ -m32编译成功"
+              & g++ AsulCXXMake.cpp -o build/${{ matrix.exe-name }}-GBK -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32
+              & g++ AsulCXXMake.cpp -o build/${{ matrix.exe-name }} -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -m32
             } catch {
               Write-Host "所有32位编译方法都失败"
               exit 1
@@ -173,43 +180,42 @@ jobs:
         if: startsWith(matrix.host, 'windows') && matrix.arch == 'x64'
         shell: pwsh
         run: |
-          Write-Host "编译64位Windows程序..."
-          
           $compiler64 = "x86_64-w64-mingw32-g++"
           try {
-            & $compiler64 AsulCXXMake.cpp -o build/AMake-GBK.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
-            & $compiler64 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
-            Write-Host "64位编译成功"
+            & $compiler64 AsulCXXMake.cpp -o build/${{ matrix.exe-name }}-GBK -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
+            & $compiler64 AsulCXXMake.cpp -o build/${{ matrix.exe-name }} -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
           } catch {
             Write-Host "64位编译失败: $($_.Exception.Message)"
             exit 1
           }
 
+      # 3. macOS 构建：生成带架构标识的可执行文件
       - name: 构建 macOS 项目 (x64)
         if: startsWith(matrix.host, 'macos') && matrix.arch == 'x64'
         run: |
-          ${{ matrix.compiler }} AsulCXXMake.cpp -o build/AMake -std=c++17 \
+          ${{ matrix.compiler }} AsulCXXMake.cpp -o build/${{ matrix.exe-name }} -std=c++17 \
             -arch x86_64 \
             -finput-charset=UTF-8
 
       - name: 构建 macOS 项目 (arm64)
         if: startsWith(matrix.host, 'macos') && matrix.arch == 'arm64'
         run: |
-          ${{ matrix.compiler }} AsulCXXMake.cpp -o build/AMake -std=c++17 \
+          ${{ matrix.compiler }} AsulCXXMake.cpp -o build/${{ matrix.exe-name }} -std=c++17 \
             -arch arm64 \
             -target arm64-apple-macos11 \
             -finput-charset=UTF-8
 
+      # 检查构建结果：确保带标识的产物存在
       - name: 检查构建结果 (Linux/macOS)
         if: startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos')
         run: |
           echo "构建目录内容:"
           ls -la build/
-          if [ -f "build/AMake" ]; then
-            echo "构建成功!"
-            file build/AMake
+          if [ -f "build/${{ matrix.exe-name }}" ]; then
+            echo "构建成功! 产物: build/${{ matrix.exe-name }}"
+            file build/${{ matrix.exe-name }}
           else
-            echo "构建失败: 未找到可执行文件"
+            echo "构建失败: 未找到产物 build/${{ matrix.exe-name }}"
             exit 1
           fi
 
@@ -219,13 +225,14 @@ jobs:
         run: |
           Write-Host "构建目录内容:"
           Get-ChildItem build/ -ErrorAction SilentlyContinue
-          if (Test-Path "build/AMake.exe") {
-            Write-Host "构建成功!"
+          if (Test-Path "build/${{ matrix.exe-name }}") {
+            Write-Host "构建成功! 产物: build/${{ matrix.exe-name }}"
           } else {
-            Write-Host "构建失败: 未找到可执行文件"
+            Write-Host "构建失败: 未找到产物 build/${{ matrix.exe-name }}"
             exit 1
           }
 
+      # 运行测试：使用带标识的可执行文件
       - name: 运行测试 (Linux/macOS)
         if: matrix.testable && (startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos'))
         run: |
@@ -244,13 +251,35 @@ jobs:
             Write-Host "测试执行失败: $($_.Exception.Message)"
           }
 
-      - name: 上传构建产物到Artifact
+      # 【关键】打包产物为压缩包（带架构标识），避免文件分散
+      - name: 打包产物 (Linux/macOS)
+        if: startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos')
+        run: |
+          cd build
+          # 将可执行文件、CHANGELOG打包为zip（名称带架构标识）
+          zip ${{ matrix.zip-name }} ${{ matrix.exe-name }} CHANGELOG.md
+          # 若有GBK版本也一并打包（如Windows）
+          if [ -f "${{ matrix.exe-name }}-GBK" ]; then
+            zip -u ${{ matrix.zip-name }} ${{ matrix.exe-name }}-GBK
+          fi
+
+      - name: 打包产物 (Windows)
+        if: startsWith(matrix.host, 'windows')
+        shell: pwsh
+        run: |
+          cd build
+          # 使用7zip打包（Windows默认无zip命令，通过choco安装）
+          7z a ${{ matrix.zip-name }} ${{ matrix.exe-name }} CHANGELOG.md
+          if (Test-Path "${{ matrix.exe-name }}-GBK") {
+            7z a -u ${{ matrix.zip-name }} ${{ matrix.exe-name }}-GBK
+          }
+
+      # 上传打包后的压缩包（仅传1个zip文件，彻底避免冲突）
+      - name: 上传打包产物
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}-artifact
-          path: |
-            ./build/**
-            ./CHANGELOG.md
+          name: ${{ matrix.target }}-package
+          path: ./build/${{ matrix.zip-name }}
           retention-days: 7
 
 
@@ -263,29 +292,30 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 下载所有构建产物
+      - name: 下载所有架构的打包产物
         uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
+          path: ./release-packages
           merge-multiple: false
 
+      # 验证产物：确保所有压缩包都存在
       - name: 验证产物完整性
         run: |
-          echo "=== 所有下载的产物列表 ==="
-          find ./artifacts -type f | sort
-          if [ -z "$(find ./artifacts -type f)" ]; then
-            echo "错误：未找到任何构建产物，Release终止"
+          echo "=== 待发布的产物列表 ==="
+          find ./release-packages -type f -name "AMake-*.zip" | sort
+          if [ -z "$(find ./release-packages -type f -name "AMake-*.zip")" ]; then
+            echo "错误：未找到任何打包产物，Release终止"
             exit 1
           fi
 
+      # 统一发布：所有压缩包一次性上传到Release
       - name: 创建GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           body_path: ./CHANGELOG.md
-          files: |
-            ./artifacts/**/*
-            ./CHANGELOG.md
+          # 仅上传zip压缩包（结构清晰，无冲突）
+          files: ./release-packages/**/AMake-*.zip
           draft: false
           prerelease: false
           generate_release_notes: false
