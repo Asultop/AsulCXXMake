@@ -41,8 +41,8 @@ using std::cout;
 #define UNDERLINE "\033[4m"
 
 #define CACHE_DIR_NAME std::string(".cache")
-#define FILE_IN_SUFFIX std::string(".in ")
-#define FILE_OUT_SUFFIX std::string(".out ")
+#define FILE_IN_SUFFIX std::string(".in")
+#define FILE_OUT_SUFFIX std::string(".out")
 #define CPP_COMPILER std::string("g++ ")
 #define COMPILER_FLAGS std::string("-O2 ")
 #define OUTPUT(x) std::string("-o "+x+EXE_SUFFIX+" ")
@@ -57,6 +57,7 @@ using std::cout;
     #define INSTALL_PATH    std::string(INSTALL_DIR+"\\"+PROJECT_NAME+".exe")
     #define EXE_SUFFIX      std::string(".exe") 
     #define LAST_BUILD_INFO ".cache\\Last.build"
+    #define CACHE_STREAM    ".cache\\Last.temp.stream"
     #define CACHE_TIME_INFO ".cache\\Last.build.stamp"
     #define FILE_PREFIX     std::string("")
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -69,6 +70,7 @@ using std::cout;
     #define EXE_SUFFIX      std::string("")
     #define LAST_BUILD_INFO ".cache/Last.build"
     #define CACHE_TIME_INFO ".cache/Last.build.stamp"
+    #define CACHE_STREAM    ".cache/Last.temp.stream"
     #define FILE_PREFIX     std::string("./")
 #elif defined(__linux__)
     #define CMD_REMOVE      std::string("rm ")
@@ -80,6 +82,7 @@ using std::cout;
     #define EXE_SUFFIX      std::string("")
     #define LAST_BUILD_INFO ".cache/Last.build"
     #define CACHE_TIME_INFO ".cache/Last.build.stamp"
+    #define CACHE_STREAM    ".cache/Last.temp.stream"
     #define FILE_PREFIX     std::string("./")
 #else
     #define CMD_REMOVE      std::string("rm ")
@@ -91,6 +94,7 @@ using std::cout;
     #define EXE_SUFFIX      std::string("")
     #define LAST_BUILD_INFO ".cache/Last.build"
     #define CACHE_TIME_INFO ".cache/Last.build.stamp"
+    #define CACHE_STREAM    ".cache/Last.temp.stream"
     #define FILE_PREFIX     std::string("./")
 #endif
 
@@ -182,7 +186,12 @@ typedef enum{
     N,
     None
 } DefaultCase;
-
+typedef enum{
+    AC,
+    WA,
+    RE,
+    CE
+} JudgeState;
 template<typename T>
 struct PrintStruct{
     const T content;
@@ -477,8 +486,9 @@ bool build(const std::string projectNameSource){
 int run(const std::string projectNameSource){
 
     FileType fileType=getType(projectNameSource);
-    std::string inStream="",outStream="";
+    std::string inStream="";
     std::string projectName=getPureContent(projectNameSource);
+    bool hasOutStream=false;
     if(fileExist(getPureContent((projectName + EXE_SUFFIX)).c_str()) && fileExist(CACHE_TIME_INFO)){
         std::string lastStamp;
         try {
@@ -524,46 +534,98 @@ int run(const std::string projectNameSource){
             .printMap();
         }
     }
+    cout<<"[DEBUG]:|"<<projectName<<"|"<<std::endl;
+    cout<<"[DEBUG]:|"<<(projectName+FILE_IN_SUFFIX).c_str()<<"|"<<std::endl;
     if(fileExist((projectName+FILE_IN_SUFFIX).c_str())) inStream = " < "+projectName+FILE_IN_SUFFIX;
-    if(fileExist((projectName+FILE_OUT_SUFFIX).c_str())) outStream = " > "+projectName+FILE_OUT_SUFFIX;
-    std::string cmd=FILE_PREFIX+projectName+EXE_SUFFIX+" "+inStream+" "+outStream;
+    if(fileExist((projectName+FILE_OUT_SUFFIX).c_str())) hasOutStream=true;
 
+    std::string cmd=FILE_PREFIX+projectName+EXE_SUFFIX+" "+inStream;
+    if(hasOutStream) cmd+=" >"+std::string(CACHE_STREAM);
     PrintMap<std::string>()
+    .endl()
     .append(LogLevel::Info)
         .append("执行运行命令 : ")
         .append(cmd,ConsoloColor::LightGray)
     .endl()
-        .append("╔═════ ")
+        .append("═════ ")
         .append(projectName+" 开始",ConsoloColor::Yellow)
-        .append(" ══════╗")
-    .endl()
+        .append(" ══════")
+
     .printMap();
     
     int returnCode=system(cmd.c_str());
-    if(returnCode == 0){
-        PrintMap<std::string>()
+    std::string outStream;
+    JudgeState state;
+    if(hasOutStream){
+        std::string outFileContent;
+        try {
+            outStream = getFileContent(CACHE_STREAM);
+        } catch (const std::runtime_error& e) {
+            printErr(e.what());
+            print("\n");
+            return BadFile;
+        }
+        try {
+            outFileContent = getFileContent((projectName+FILE_OUT_SUFFIX).c_str());
+        } catch (const std::runtime_error& e) {
+            printErr(e.what());
+            print("\n");
+            return BadFile;
+        }
+        if(outStream==outFileContent) state = JudgeState::AC;
+        else if(outStream+"\n"==outFileContent) state = JudgeState::AC;
+        else if(outStream==outFileContent+"\n") state = JudgeState::AC;
+        
+        else state = JudgeState::WA;
+    }
+
+    auto 
+        result=PrintMap<std::string>();
+        if(hasOutStream){
+        result
+            .append(outStream);
+        }
+        result
         .endl()
-            .append("╚═════ ")
+
+            .append("═════ ")
             .append(projectName+" 结束",ConsoloColor::Yellow)
-            .append(" ══════╝")
-        .endl()
+            .append(" ══════")
+        .endl();
+    if(hasOutStream){
+        if(state == JudgeState::AC){
+            result
+                .append("[AC] ",ConsoloColor::Green)
+                .append("与 ")
+                .append(projectName+FILE_OUT_SUFFIX,ConsoloColor::DarkGray)
+                .append(" 比较时通过");
+        }
+        else if(state == JudgeState::WA){
+            result
+                .append("[WA] ",ConsoloColor::Red)
+                .append("与 ")
+                .append(projectName+FILE_OUT_SUFFIX,ConsoloColor::DarkGray)
+                .append(" 比较不通过");
+        }
+        result.endl();
+    }
+    if(returnCode == 0){
+        result
             .append(LogLevel::Success)
             .append(projectName,ConsoloColor::Yellow)
-            .append(" 正常退出 (Return 0;)")
+            .append(" 正常退出 (返回值 : 0)")
         .printMap();
         return Accepted;
     }
-    else PrintMap<std::string>()
-            .append("╚═════ ")
-            .append(projectName+" 结束",ConsoloColor::Yellow)
-            .append(" ══════╝")
-        .endl()
+    else{ 
+        result
             .append(LogLevel::Warn)
             .append(projectName,ConsoloColor::Yellow)
             .append(" 退出码: ")
             .append(std::to_string(returnCode),ConsoloColor::Red)
         .printMap();
-    return returnCode;
+        return returnCode;
+    }
 }
 
 bool systemSilent(const char* command) {
