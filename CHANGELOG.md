@@ -1,4 +1,4 @@
-# Alpha-v0.1.1 AMake Release 
+# Alpha-v0.1.2 AMake Release 
 - ``AMake --install`` : 安装到本地 （系统Path）
 - ``AMake xxx.cpp`` : 自动识别文件类型提供快速编译以及快速运行
 - ``AMake run`` : 运行上次构建的目标
