@@ -15,6 +15,7 @@ jobs:
             target: x86_64-ubuntu
             arch: x64
             compiler: g++
+            cprun: cp
             exe: ./AMake
             testable: true
           # Ubuntu arm64
@@ -22,6 +23,7 @@ jobs:
             target: arm64-ubuntu
             arch: arm64
             compiler: aarch64-linux-gnu-g++
+            cprun: cp
             exe: qemu-aarch64 ./AMake
             testable: false
           # Windows x86 (32位)
@@ -29,6 +31,7 @@ jobs:
             target: x86-windows
             arch: x86
             compiler: i686-w64-mingw32-g++
+            cprun: copy
             exe: .\AMake.exe
             testable: true
           # Windows x64 (64位)
@@ -36,6 +39,7 @@ jobs:
             target: x64-windows
             arch: x64
             compiler: x86_64-w64-mingw32-g++
+            cprun: copy
             exe: .\AMake.exe
             testable: true
           # macOS x64
@@ -43,6 +47,7 @@ jobs:
             target: x64-macos
             arch: x64
             compiler: g++
+            cprun: cp
             exe: ./AMake
             testable: true
           # macOS arm64 (M1/M2等)
@@ -50,6 +55,7 @@ jobs:
             target: arm64-macos
             arch: arm64
             compiler: g++
+            cprun: cp
             exe: ./AMake
             testable: true
 
@@ -140,13 +146,7 @@ jobs:
     - name: 创建构建目录
       run: |
         mkdir -p build
-    - name: 复制 CHANGELOG.md 文档
-      if: startsWith(matrix.host, 'ubuntu')
-      run: |
-        cp CHANGELOG.md ./build/
-      if: startsWith(matrix.host,'windows')
-      run: |
-        copy CHANGELOG.md build/
+        ${{ matrix.cprun }} ./CHANGELOG.md ./build/
     - name: 构建 Ubuntu 项目 (x64)
       if: startsWith(matrix.host, 'ubuntu') && matrix.arch == 'x64'
       run: |
