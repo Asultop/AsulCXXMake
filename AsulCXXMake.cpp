@@ -1,5 +1,5 @@
 #define PROJECT_NAME std::string("AMake")
-#define PROJECT_VERSION std::string("alpha-v0.1.1")
+#define PROJECT_VERSION std::string("alpha-v0.1.2")
 
 #include <sstream>
 #include <fstream>
