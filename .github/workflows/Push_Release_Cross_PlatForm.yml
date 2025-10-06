@@ -161,20 +161,26 @@ jobs:
           $compiler32 = "i686-w64-mingw32-g++"
           # 提取基础文件名（不含.exe）
           $baseName = "${{ matrix.exe-name }}".Substring(0, "${{ matrix.exe-name }}".Length - 4)
+          $gbkExeName = "$baseName-GBK.exe"
+          
           try {
             # 构建GBK版本：*-GBK.exe
-            & $compiler32 AsulCXXMake.cpp -o build/"$baseName-GBK.exe" -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK
+            & $compiler32 AsulCXXMake.cpp -o build/"$gbkExeName" -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK
             # 构建UTF-8版本：原始名称.exe
             & $compiler32 AsulCXXMake.cpp -o build/"${{ matrix.exe-name }}" -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
           } catch {
             try {
-              & g++ AsulCXXMake.cpp -o build/"$baseName-GBK.exe" -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32
+              & g++ AsulCXXMake.cpp -o build/"$gbkExeName" -std=c++17 -finput-charset=UTF-8 -fexec-charset=GBK -m32
               & g++ AsulCXXMake.cpp -o build/"${{ matrix.exe-name }}" -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -m32
             } catch {
               Write-Host "所有32位编译方法都失败"
               exit 1
             }
           }
+          
+          # 显示构建结果确认
+          Write-Host "构建产物确认："
+          Get-ChildItem build/ | Where-Object { $_.Name -like "$baseName*" }
 
       - name: 构建 Windows 项目 (x64)
         if: startsWith(matrix.host, 'windows') && matrix.arch == 'x64'
@@ -183,15 +189,21 @@ jobs:
           $compiler64 = "x86_64-w64-mingw32-g++"
           # 提取基础文件名（不含.exe）
           $baseName = "${{ matrix.exe-name }}".Substring(0, "${{ matrix.exe-name }}".Length - 4)
+          $gbkExeName = "$baseName-GBK.exe"
+          
           try {
             # 构建GBK版本：*-GBK.exe
-            & $compiler64 AsulCXXMake.cpp -o build/"$baseName-GBK.exe" -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
+            & $compiler64 AsulCXXMake.cpp -o build/"$gbkExeName" -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
             # 构建UTF-8版本：原始名称.exe
-            & $compiler64 AsulCXXMake.cpp -o build/"${{ matrix.exe-name }}" -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=UTF-8
+            & $compiler64 AsulCXXMake.cpp -o build/"${{ matrix.exe-name }}" -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
           } catch {
             Write-Host "64位编译失败: $($_.Exception.Message)"
             exit 1
           }
+          
+          # 显示构建结果确认
+          Write-Host "构建产物确认："
+          Get-ChildItem build/ | Where-Object { $_.Name -like "$baseName*" }
 
       - name: 构建 macOS 项目 (x64)
         if: startsWith(matrix.host, 'macos') && matrix.arch == 'x64'
@@ -225,12 +237,25 @@ jobs:
         if: startsWith(matrix.host, 'windows')
         shell: pwsh
         run: |
+          $baseName = "${{ matrix.exe-name }}".Substring(0, "${{ matrix.exe-name }}".Length - 4)
+          $gbkExeName = "$baseName-GBK.exe"
+          
           Write-Host "构建目录内容:"
           Get-ChildItem build/ -ErrorAction SilentlyContinue
+          
+          # 检查主程序
           if (Test-Path "build/${{ matrix.exe-name }}") {
-            Write-Host "构建成功! 产物: build/${{ matrix.exe-name }}"
+            Write-Host "主程序构建成功! 产物: build/${{ matrix.exe-name }}"
           } else {
-            Write-Host "构建失败: 未找到产物 build/${{ matrix.exe-name }}"
+            Write-Host "主程序构建失败: 未找到产物 build/${{ matrix.exe-name }}"
+            exit 1
+          }
+          
+          # 检查GBK版本
+          if (Test-Path "build/$gbkExeName") {
+            Write-Host "GBK版本构建成功! 产物: build/$gbkExeName"
+          } else {
+            Write-Host "GBK版本构建失败: 未找到产物 build/$gbkExeName"
             exit 1
           }
 
@@ -244,9 +269,16 @@ jobs:
         if: matrix.testable && startsWith(matrix.host, 'windows')
         shell: pwsh
         run: |
+          $baseName = "${{ matrix.exe-name }}".Substring(0, "${{ matrix.exe-name }}".Length - 4)
+          $gbkExeName = "$baseName-GBK.exe"
+          
           cd build
           try {
+            Write-Host "测试主程序版本:"
             & ${{ matrix.exe }} --version
+            
+            Write-Host "测试GBK版本:"
+            & "$gbkExeName" --version
             Write-Host "测试执行成功"
           } catch {
             Write-Host "测试执行失败: $($_.Exception.Message)"
@@ -266,14 +298,21 @@ jobs:
         if: startsWith(matrix.host, 'windows')
         shell: pwsh
         run: |
-          cd build
           $baseName = "${{ matrix.exe-name }}".Substring(0, "${{ matrix.exe-name }}".Length - 4)
-          # 1. 先打包基础文件（可执行文件+CHANGELOG）
-          7z a ${{ matrix.zip-name }} ${{ matrix.exe-name }} CHANGELOG.md
-          # 2. 若存在GBK版本，用 -u- 更新压缩包
-          if (Test-Path "$baseName-GBK.exe") {
-            7z a -u- ${{ matrix.zip-name }} "$baseName-GBK.exe"
-          }
+          $gbkExeName = "$baseName-GBK.exe"
+          
+          cd build
+          
+          # 显示当前目录内容，确认文件存在
+          Write-Host "打包前的文件列表:"
+          Get-ChildItem
+          
+          # 1. 先打包所有相关文件
+          7z a ${{ matrix.zip-name }} ${{ matrix.exe-name }} $gbkExeName CHANGELOG.md
+          
+          # 2. 验证压缩包内容
+          Write-Host "压缩包内容:"
+          7z l ${{ matrix.zip-name }}
 
       - name: 上传打包产物
         uses: actions/upload-artifact@v4
@@ -306,6 +345,14 @@ jobs:
             echo "错误：未找到任何打包产物，Release终止"
             exit 1
           fi
+          
+          # 显示每个压缩包的内容
+          echo "=== 压缩包内容验证 ==="
+          find ./release-packages -type f -name "AMake-*.zip" | while read -r zipfile; do
+            echo "文件: $zipfile"
+            unzip -l "$zipfile"
+            echo "-------------------------"
+          done
 
       - name: 创建GitHub Release
         uses: softprops/action-gh-release@v2
@@ -316,3 +363,4 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: false
+    
