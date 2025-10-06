@@ -190,7 +190,7 @@ jobs:
         $compiler64 = "x86_64-w64-mingw32-g++"
         try {
           & $compiler64 AsulCXXMake.cpp -o build/AMake-GBK.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=GBK
-          & $compiler64 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8
+          & $compiler64 AsulCXXMake.cpp -o build/AMake.exe -std=c++17 -static -finput-charset=UTF-8 -fexec-charset=UTF-8
           Write-Host "64位编译成功"
         } catch {
           Write-Host "64位编译失败: $($_.Exception.Message)"
