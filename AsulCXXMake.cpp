@@ -98,9 +98,7 @@ using std::cout;
     #define FILE_PREFIX     std::string("./")
 #endif
 
-// System Macro
-
-// 系统和架构检测宏
+//System Macro
 #if defined(_WIN32) || defined(_WIN64)
     #define OS_PREFIX "Win"
     #if defined(_WIN64)
@@ -111,7 +109,7 @@ using std::cout;
         #define WINDOWS_32
     #endif
 #elif defined(__linux__)
-    #define OS_PREFIX "Ubuntu"  // 这里简化处理为Ubuntu，实际可能需要更复杂的检测
+    #define OS_PREFIX "Ubuntu"  
     #if defined(__x86_64__) || defined(_M_X64)
         #define ARCH_SUFFIX "amd64"
         #define UBUNTU_AMD64
@@ -134,7 +132,6 @@ using std::cout;
     #define UnKnown
 #endif
 
-// 组合成完整的系统架构标识
 #define SYSTEM_ARCH OS_PREFIX ARCH_SUFFIX
 
 // orcaM metsyS
@@ -534,15 +531,13 @@ int run(const std::string projectNameSource){
             .printMap();
         }
     }
-    cout<<"[DEBUG]:|"<<projectName<<"|"<<std::endl;
-    cout<<"[DEBUG]:|"<<(projectName+FILE_IN_SUFFIX).c_str()<<"|"<<std::endl;
+
     if(fileExist((projectName+FILE_IN_SUFFIX).c_str())) inStream = " < "+projectName+FILE_IN_SUFFIX;
     if(fileExist((projectName+FILE_OUT_SUFFIX).c_str())) hasOutStream=true;
 
     std::string cmd=FILE_PREFIX+projectName+EXE_SUFFIX+" "+inStream;
     if(hasOutStream) cmd+=" >"+std::string(CACHE_STREAM);
     PrintMap<std::string>()
-    .endl()
     .append(LogLevel::Info)
         .append("执行运行命令 : ")
         .append(cmd,ConsoloColor::LightGray)
@@ -677,7 +672,6 @@ int main(int argc, char* argv[]) {
 		.printMap();
 		// return CompilerErr;
 	}
-    
     if (arg == "--install"){
         #ifdef _WIN32
         	bool runAsAdmin=[=](){
@@ -929,7 +923,6 @@ int main(int argc, char* argv[]) {
     }
 
     std::string lastBuild = "";
-    
     if (fileExist(LAST_BUILD_INFO)) {
         try {
             lastBuild = getFileContent(LAST_BUILD_INFO);
@@ -1063,7 +1056,6 @@ int main(int argc, char* argv[]) {
         .printMap();
         return TypeErr;
     }
-
     std::string targetProject=arg;
 
     if(!fileExist((targetProject).c_str())){
@@ -1093,8 +1085,8 @@ int main(int argc, char* argv[]) {
 			.append(writeReturn.second,ConsoloColor::LightGray)
 		.printMap();
 	}
-	
-    if(!fileExist(getPureContent((arg + EXE_SUFFIX)).c_str()))
+
+    if(!fileExist((getPureContent(arg)+EXE_SUFFIX).c_str()))
     // if(true)
         if(!build(targetProject)) return BuildErr;
 	

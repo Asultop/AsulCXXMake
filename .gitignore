@@ -1,6 +1,11 @@
 1.cpp
 1.in
 1.out
+1.exe
+1
 AMake
 AsulCXXMake
+AMake.exe
+AsulCXXMake.exe
 .cache/*
+.vscode/*
