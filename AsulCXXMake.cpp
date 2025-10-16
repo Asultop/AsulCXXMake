@@ -323,20 +323,14 @@ int main(int argc, char *argv[]) {
     return Accepted;
   } else if (arg == "--env") {
     if (hasCXXCompiler) {
-      printSucc("C/C++ 环境完整 \n");
+      cout << f("(SUCCESS) C/C++ 环境完整 \n");
     } else {
-      printErr("功能暂未实现 \n");
+      cout << f("(WARN) 功能暂未实现 \n(Error) 缺失环境！");
     }
     return Accepted;
   } else if ((arg.length() >= 1 && arg[0] == '-') ||
              arg.length() >= 2 && (arg[0] == '-' && arg[1] == '-')) {
-    PrintMap<std::string>()
-        .append(LogLevel::Warn)
-        .append(arg, ConsoloColor::Yellow)
-        .append(" ：看起来这似乎是一个选项，仍要将其当作源文件吗?")
-        .endl()
-        .askYN(DefaultCase::N)
-        .printMap(false);
+    cout << f("(WARN) {YELLOW} ：看起来似乎是一个选项，仍要将其当作源文件吗? (ASK_N) \n",arg);
     char getIn = getchar();
     switch (getIn) {
     case 'Y':
@@ -345,7 +339,8 @@ int main(int argc, char *argv[]) {
     default:
     case 'N':
     case 'n':
-      printInfo("用户已取消 \n");
+      // printInfo("用户已取消 \n");
+      cout<< f("(INFO) 用户已取消");
       return Accepted;
     }
   }
@@ -355,19 +350,21 @@ int main(int argc, char *argv[]) {
     try {
       lastBuild = getFileContent(LAST_BUILD_INFO);
     } catch (const std::runtime_error &e) {
-      printErr(e.what());
-      print("\n");
+      // printErr(e.what());
+      // print("\n");
+      cout << f("(ERROR) {}\n",e.what());
       return BadFile;
     }
   }
   if (arg == "clear") {
     std::string lastBuildName = getPureContent(lastBuild);
     if (!folderExist(CACHE_DIR_NAME)) {
-      PrintMap<std::string>()
-          .append(LogLevel::Info)
-          .append("无上次构建记录，无需清理 ")
-          .append(CACHE_DIR_NAME, ConsoloColor::Yellow)
-          .printMap();
+      // PrintMap<std::string>()
+      //     .append(LogLevel::Info)
+      //     .append("无上次构建记录，无需清理 ")
+      //     .append(CACHE_DIR_NAME, ConsoloColor::Yellow)
+      //     .printMap();
+      cout << f("(INFO) 无上次构建记录，无需清理 {YELLOW}\n",CACHE_DIR_NAME);
       return Accepted;
     }
     // if (!fileExist(lastBuild.c_str())){
@@ -379,39 +376,40 @@ int main(int argc, char *argv[]) {
     std::string cmd_rm_cache_dir = RM_FOLDER + FILE_PREFIX + CACHE_DIR_NAME;
     int errCount = 0;
     if (folderExist(FILE_PREFIX + CACHE_DIR_NAME)) {
-      PrintMap<std::string>()
-          .append("执行清理命令 : ")
-          .append(cmd_rm_cache_dir, ConsoloColor::LightGray)
-          .printMap();
+      cout << f("(INFO) 执行清理命令 : {LIGHT_GRAY}\n", cmd_rm_cache_dir);
       errCount += systemSilent(cmd_rm_cache_dir.c_str());
     }
     if (fileExist(lastBuildName.c_str())) {
-      PrintMap<std::string>()
-          .append("执行清理命令：")
-          .append(cmd_rm_build_file, ConsoloColor::LightGray)
-          .printMap();
+      // PrintMap<std::string>()
+      //     .append("执行清理命令：")
+      //     .append(cmd_rm_build_file, ConsoloColor::LightGray)
+      //     .printMap();
+      cout << f("(INFO) 执行清理命令：{LIGHT_GRAY}",cmd_rm_build_file);
 
       errCount += systemSilent(cmd_rm_build_file.c_str());
     }
     if (errCount == 0) {
-      PrintMap<std::string>()
-          .append(LogLevel::Success)
-          .append("清理存在的项目：")
-          .append(lastBuildName, ConsoloColor::Yellow)
-          .append(" 完成")
-          .printMap();
+      // PrintMap<std::string>()
+      //     .append(LogLevel::Success)
+      //     .append("清理存在的项目：")
+      //     .append(lastBuildName, ConsoloColor::Yellow)
+      //     .append(" 完成")
+      //     .printMap();
+      cout << f("(SUCCESS) 清理存在的项目：{YELLOW} 完成\n", lastBuildName);
       return Accepted;
     }
-    PrintMap<std::string>()
-        .append(LogLevel::Warn)
-        .append("清理完成，但出现 ")
-        .append(std::to_string(errCount), ConsoloColor::Red)
-        .append(" 个错误！")
-        .printMap();
+    // PrintMap<std::string>()
+    //     .append(LogLevel::Warn)
+    //     .append("清理完成，但出现 ")
+    //     .append(std::to_string(errCount), ConsoloColor::Red)
+    //     .append(" 个错误！")
+    //     .printMap();
+    cout << f("(WARN) 清理完成，但出现 {RED} 个错误！\n", errCount);
     return BadFile;
   } else if (arg == "make") {
     if (lastBuild.empty()) {
-      printErr("无上次构建记录，无法构建\n");
+      // printErr("无上次构建记录，无法构建\n");
+      cout << f("(ERROR) 无上次构建记录，无法构建\n");
       return BuildErr;
     }
     if (!build(lastBuild))
@@ -420,20 +418,22 @@ int main(int argc, char *argv[]) {
     return Accepted;
   } else if (arg == "run") {
     if (lastBuild.empty()) {
-      printErr("无上次构建记录，无法运行\n");
+      // printErr("无上次构建记录，无法运行\n");
+      cout << f("(ERROR) 无上次构建记录，无法运行\n");
       return BuildErr;
     }
     std::string lastBuildPure = getPureContent(lastBuild);
     if (fileExist((lastBuildPure + EXE_SUFFIX).c_str())) {
       return run(lastBuild);
     } else {
-      PrintMap<std::string>()
-          .append(LogLevel::Warn)
-          .append("暂未构建 ")
-          .append(lastBuildPure, ConsoloColor::Yellow)
-          .append(" 是否立刻构建？\n(Y/" + std::string(UNDERLINE) + "N" +
-                  std::string(RESET) + "): ")
-          .printMap(false);
+      // PrintMap<std::string>()
+      //     .append(LogLevel::Warn)
+      //     .append("暂未构建 ")
+      //     .append(lastBuildPure, ConsoloColor::Yellow)
+      //     .append(" 是否立刻构建？\n(Y/" + std::string(UNDERLINE) + "N" +
+      //             std::string(RESET) + "): ")
+      //     .printMap(false);
+      cout << f("(WARN) 暂未构建 {YELLOW} 是否立刻构建？\n(ASK_N):", lastBuildPure);
       char getIn = getchar();
       switch (getIn) {
       case 'y':
@@ -444,76 +444,85 @@ int main(int argc, char *argv[]) {
       default:
       case 'n':
       case 'N':
-        printInfo(std::string("用户已取消 \n"));
+        // printInfo(std::string("用户已取消 \n"));
+        cout << f("(INFO) 用户已取消 \n");
       }
     }
     return Accepted;
   } else if (arg == "remake") {
     if (lastBuild.empty()) {
-      printErr("无上次构建记录，无法重构\n");
+      // printErr("无上次构建记录，无法重构\n");
+      cout << f("(ERROR) 无上次构建记录，无法重构\n");
       return BuildErr;
     }
     std::string lastBuildPure = getPureContent(lastBuild);
 
     if (!fileExist(std::string(lastBuildPure + EXE_SUFFIX).c_str()))
-      PrintMap<std::string>()
-          .append(LogLevel::Warn)
-          .append("不存在构建文件，此时推荐使用")
-          .append(" make ", ConsoloColor::Yellow)
-          .append("命令，以减少[错误]警报！")
-          .printMap();
+      // PrintMap<std::string>()
+      //     .append(LogLevel::Warn)
+      //     .append("不存在构建文件，此时推荐使用")
+      //     .append(" make ", ConsoloColor::Yellow)
+      //     .append("命令，以减少错误警报！")
+      //     .printMap();
+      cout << f("(WARN) 不存在构建文件，此时推荐使用 {YELLOW} 命令，以减少错误警报！\n", "make");
     if (!build(lastBuild))
       return BuildErr;
     return run(lastBuild);
   } else if (arg == "status") {
     if (lastBuild.empty()) {
-      printInfo("暂未构建过项目 （暂存区干净）\n");
+      // printInfo("暂未构建过项目 （暂存区干净）\n");
+      cout << f("(INFO) 暂未构建过项目 （暂存区干净）\n");
       return Accepted;
     }
-    PrintMap<std::string>()
-        .append(LogLevel::Success)
-        .append("上次构建的项目：")
-        .append(lastBuild)
-        .printMap();
+    // PrintMap<std::string>()
+    //     .append(LogLevel::Success)
+    //     .append("上次构建的项目：")
+    //     .append(lastBuild)
+    //     .printMap();
+    cout << f("(SUCCESS) 上次构建的项目：{YELLOW} 完成\n", lastBuild);
     return Accepted;
   }
 
   if (getType(arg) != FileType::C && getType(arg) != FileType::CPP) {
-    PrintMap<std::string>()
-        .append(LogLevel::Err)
-        .append(arg, ConsoloColor::Yellow)
-        .append(" 类型无效")
-        .printMap();
+    // PrintMap<std::string>()
+    //     .append(LogLevel::Err)
+    //     .append(arg, ConsoloColor::Yellow)
+    //     .append(" 类型无效")
+    //     .printMap();
+    cout << f("(ERROR) {YELLOW} 类型无效\n", arg);
     return TypeErr;
   }
   std::string targetProject = arg;
 
   if (!fileExist((targetProject).c_str())) {
-    PrintMap<std::string>()
-        .append(LogLevel::Err)
-        .append("文件 ")
-        .append(targetProject, ConsoloColor::Yellow)
-        .append(" 不存在！")
-        .printMap();
+    // PrintMap<std::string>()
+    //     .append(LogLevel::Err)
+    //     .append("文件 ")
+    //     .append(targetProject, ConsoloColor::Yellow)
+    //     .append(" 不存在！")
+    //     .printMap();
+    cout << f("(ERROR) 文件 {YELLOW} 不存在！\n", targetProject);
     return BadFile;
   }
 
   if (!createDirectoryIfNotExists(CACHE_DIR_NAME)) {
-    PrintMap<std::string>()
-        .append(LogLevel::Err)
-        .append("无法创建文件夹 :")
-        .append(CACHE_DIR_NAME, ConsoloColor::LightGray)
-        .printMap();
+    // PrintMap<std::string>()
+    //     .append(LogLevel::Err)
+    //     .append("无法创建文件夹 :")
+    //     .append(CACHE_DIR_NAME, ConsoloColor::LightGray)
+    //     .printMap();
+    cout << f("(ERROR) 无法创建文件夹 : {LIGHT_GRAY}\n", CACHE_DIR_NAME);
     return EnvErr;
   };
 
   auto writeReturn = writeToFile(LAST_BUILD_INFO, targetProject);
   if (!writeReturn.first) {
-    PrintMap<std::string>()
-        .append(LogLevel::Warn)
-        .append("无法写入缓存文件 :")
-        .append(writeReturn.second, ConsoloColor::LightGray)
-        .printMap();
+    // PrintMap<std::string>()
+    //     .append(LogLevel::Warn)
+    //     .append("无法写入缓存文件 :")
+    //     .append(writeReturn.second, ConsoloColor::LightGray)
+    //     .printMap();
+    cout << f("(WARN) 无法写入缓存文件 : {LIGHT_GRAY}\n", writeReturn.second);
   }
 
   if (!fileExist((getPureContent(arg) + EXE_SUFFIX).c_str()))
