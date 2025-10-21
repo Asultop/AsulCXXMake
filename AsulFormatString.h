@@ -51,7 +51,7 @@ public:
     void installLogLabelAdapter() {
         installLabelAdapter({
             {"SUCCESS", f("{GREEN}", "[成功]")},
-            {"INFO", f("{DARK_GRAY}", "[通知]")},
+            {"INFO", f("{LIGHT_BLUE}", "[通知]")},
             {"WARN", f("{YELLOW}", "[警告]")},
             {"ERROR", f("{RED}", "[错误]")}
         });
@@ -194,6 +194,16 @@ private:
         return oss.str();
     }
 };
+
+inline AsulFormatString &asul_formatter() {
+  static AsulFormatString inst;
+  return inst;
+}
+
+template <typename... Args>
+inline std::string f(const std::string &fmt, const Args &...args) {
+  return asul_formatter().f(fmt, args...);
+}
 
 #endif // ASULFORMATSTRING_H
     

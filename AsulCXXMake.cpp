@@ -1,3 +1,5 @@
+
+#include <chrono>
 #define PROJECT_NAME std::string("AMake")
 #define PROJECT_VERSION std::string("alpha-v0.1.4")
 
@@ -9,20 +11,12 @@
 #include "AsulFormatString.h"
 #include "Def.h"
 #include "FileTools.h"
-#include "PrintTools.h"
+#include <ctime>
 
-inline AsulFormatString &asul_formatter() {
-  static AsulFormatString inst;
-  return inst;
-}
 
-template <typename... Args>
-inline std::string f(const std::string &fmt, const Args &...args) {
-  return asul_formatter().f(fmt, args...);
-}
 
 using namespace AsulKit::FileTools;
-using namespace AsulKit::PrintTools;
+
 using std::cout;
 
 bool build(const std::string projectNameSource) {
@@ -35,7 +29,9 @@ bool build(const std::string projectNameSource) {
     SUFFIX = ".cpp";
   std::string cmd = CPP_COMPILER + COMPILER_FLAGS + projectName + SUFFIX + " " +
                     OUTPUT(projectName);
-  cout << f("(INFO) 执行构建命令: {LIGHT_GRAY} \n", cmd);
+  cout << f("(INFO) 执行构建命令: {DARK_GRAY} \n", cmd);
+
+  auto Begin = std::chrono::high_resolution_clock::now();
 
   if (system(cmd.c_str()) == 0) {
     auto fileStampStatus = getFileModificationTime(projectNameSource);
@@ -44,12 +40,13 @@ bool build(const std::string projectNameSource) {
     } else {
       auto writeReturn = writeToFile(CACHE_TIME_INFO, fileStampStatus.second);
       if (!writeReturn.first) {
-        cout << f("(WARN) 无法写入缓存文件 : {LIGHT_GRAY}\n",
+        cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n",
                   writeReturn.second);
       }
     }
 
     cout << f("(SUCCESS) 构建 {YELLOW} 完成\n", projectName);
+    cout << f("(INFO) 耗时 {DARK_GRAY} s\n", std::chrono::duration<double>(std::chrono::high_resolution_clock::now()-Begin).count());
     return true;
   } else
     cout << f("(ERROR) 构建 {YELLOW} 时出现问题\n", projectName);
@@ -68,7 +65,7 @@ int run(const std::string projectNameSource) {
     try {
       lastStamp = getFileContent(CACHE_TIME_INFO);
     } catch (const std::runtime_error &e) {
-      cout << f("(ERROR) 获取缓存时间失败: {LIGHT_GRAY}\n", e.what());
+      cout << f("(ERROR) 获取缓存时间失败: {DARK_GRAY}\n", e.what());
       return BadFile;
     }
     auto fileStampStatus = getFileModificationTime(projectNameSource);
@@ -77,7 +74,7 @@ int run(const std::string projectNameSource) {
     }
     if (fileStampStatus.second != lastStamp) {
       cout << f("(INFO) 源代码 {YELLOW} 似乎已修改但未编译，是否立刻编译？\n", projectNameSource);
-      cout << f("(INFO) 上次编译时间: {LIGHT_GRAY}\n(ASK_Y): ", lastStamp);
+      cout << f("(INFO) 上次编译时间: {DARK_GRAY}\n(ASK_Y): ", lastStamp);
       char getIn = getchar();
       int buildReturnStatus = -1;
       switch (getIn) {
@@ -94,7 +91,7 @@ int run(const std::string projectNameSource) {
       if (buildReturnStatus == 0)
         return BuildErr;
     } else {
-      cout << f("(INFO) 上次编译时间: {LIGHT_GRAY}\n", lastStamp);
+      cout << f("(INFO) 上次编译时间: {DARK_GRAY}\n", lastStamp);
     }
   }
 
@@ -106,7 +103,7 @@ int run(const std::string projectNameSource) {
   std::string cmd = FILE_PREFIX + projectName + EXE_SUFFIX + " " + inStream;
   if (hasOutStream)
     cmd += " >" + std::string(CACHE_STREAM);
-  cout << f("(INFO) 执行运行命令 : {LIGHT_GRAY}\n", cmd);
+  cout << f("(INFO) 执行运行命令 : {DARK_GRAY}\n", cmd);
   cout << f("═════ {YELLOW} ══════\n", projectName+"开始");
   
   int returnCode = system(cmd.c_str());
@@ -117,13 +114,13 @@ int run(const std::string projectNameSource) {
     try {
       outStream = getFileContent(CACHE_STREAM);
     } catch (const std::runtime_error &e) {
-      cout<<f("(ERROR) 获取缓存流失败: {LIGHT_GRAY}\n", e.what());
+      cout<<f("(ERROR) 获取缓存流失败: {DARK_GRAY}\n", e.what());
       return BadFile;
     }
     try {
       outFileContent = getFileContent((projectName + FILE_OUT_SUFFIX).c_str());
     } catch (const std::runtime_error &e) {
-      cout<<f("(ERROR) 获取输出文件失败: {LIGHT_GRAY}\n", e.what());
+      cout<<f("(ERROR) 获取输出文件失败: {DARK_GRAY}\n", e.what());
       return BadFile;
     }
     if (outStream == outFileContent)
@@ -253,7 +250,7 @@ int main(int argc, char *argv[]) {
                       PROJECT_NAME + EXE_SUFFIX + "\"";
     cout << "[DEBUG]" << cmd << std::endl;
     if (system(cmd.c_str()) == 0) {
-      cout << f("(SUCCESS) 安装到 {LIGHT_GRAY} \n", winSysDir + "\\" + PROJECT_NAME + EXE_SUFFIX);
+      cout << f("(SUCCESS) 安装到 {DARK_GRAY} \n", winSysDir + "\\" + PROJECT_NAME + EXE_SUFFIX);
       system("pause");
       return Accepted;
     } else {
@@ -263,15 +260,15 @@ int main(int argc, char *argv[]) {
 #else
     std::string cmd = CMD_COPY + std::string(argv[0]) + " " + INSTALL_PATH;
     if (!createDirectoryIfNotExists(INSTALL_DIR)) {
-      cout << f("(ERROR) 无法创建文件夹：{LIGHT_GRAY}\ns",INSTALL_DIR);
+      cout << f("(ERROR) 无法创建文件夹：{DARK_GRAY}\ns",INSTALL_DIR);
       return EnvErr;
     }
     if (system(cmd.c_str()) == 0) {
 
-      cout << f("(SUCCESS) 安装到 {LIGHT_GRAY} \n", INSTALL_PATH);
+      cout << f("(SUCCESS) 安装到 {DARK_GRAY} \n", INSTALL_PATH);
       return Accepted;
     } else {
-      cout << f("(ERROR) 无法安装 {YELLOW} {BLUE} {LIGHT_GRAY},请使用 {LIGHT_GRAY} 提升权限！\n",PROJECT_NAME,"on",PROJECT_VERSION, "sudo");
+      cout << f("(ERROR) 无法安装 {YELLOW} {BLUE} {DARK_GRAY},请使用 {DARK_GRAY} 提升权限！\n",PROJECT_NAME,"on",PROJECT_VERSION, "sudo");
       return PermissionErr;
     }
 #endif
@@ -293,8 +290,14 @@ int main(int argc, char *argv[]) {
         "{WHITE}"
 #endif
 
-        " {LIGHT_GRAY} {YELLOW}\t\t║\n\
-╚═══════════════════════════════════════╝\n",
+        " {DARK_GRAY} {YELLOW}\t\t"
+#ifdef NOTANYTHING
+#elif defined(WINDOWS_64) || defined(WINDOWS_32)
+        "\t"
+#endif
+
+        
+"║\n╚═══════════════════════════════════════╝\n",
         "Asul SingleFie Cpp 构建工具", "AsulTop", PROJECT_VERSION,
         __DATE__ "@" __TIME__, OS_PREFIX,"on", ARCH_SUFFIX);
 
@@ -304,21 +307,21 @@ int main(int argc, char *argv[]) {
     cout << f("{LIGHT_GREEN}\n\t自动化编译、运行单个 C/C++ 文件，支持构建记录管理（如清理/重新编译）\n","功能：");
     cout<< f("{LIGHT_GREEN}\n\tAMake [参数/命令]\n","格式：");
     cout << f("{LIGHT_GREEN}\n","参数：");
-    cout<< f("\t{YELLOW}\t{LIGHT_GRAY}\n","-h / --help","查看本帮助文档");
-    cout << f("\t{YELLOW}\t{LIGHT_GRAY}\n","-v / --version","查看工具版本信息（开发者、版本号、构建日期）");
-    cout << f("\t{YELLOW}\t{LIGHT_GRAY}\n", "--install",f("将本工具安装到 {} 当中",INSTALL_PATH));
-    cout << f("\t{YELLOW}\t\t{LIGHT_GRAY}\n","--dev","使用本工具尝试修复C/C++环境");
+    cout<< f("\t{YELLOW}\t{DARK_GRAY}\n","-h / --help","查看本帮助文档");
+    cout << f("\t{YELLOW}\t{DARK_GRAY}\n","-v / --version","查看工具版本信息（开发者、版本号、构建日期）");
+    cout << f("\t{YELLOW}\t{DARK_GRAY}\n", "--install",f("将本工具安装到 {} 当中",INSTALL_PATH));
+    cout << f("\t{YELLOW}\t\t{DARK_GRAY}\n","--dev","使用本工具尝试修复C/C++环境");
     cout << f("{LIGHT_GREEN}\n","命令：");
-    cout << f("\t{YELLOW}\t\t{LIGHT_GRAY}\n","clear","清理上次构建生成的可执行文件");
-    cout << f("\t{YELLOW}\t\t{LIGHT_GRAY}\n","make",f("基于上次构建记录 {} 重新编译项目", std::string(LAST_BUILD_INFO)));
-    cout << f("\t{YELLOW}\t\t{LIGHT_GRAY}\n","run","运行上次构建的可执行文件（未构建则提示是否编译）");
-    cout << f("\t{YELLOW}\t\t{LIGHT_GRAY}\n","remake","重新编译并自动运行上次构建的项目（等价于 make + run）");
-    cout << f("\t{YELLOW}\t\t{LIGHT_GRAY}\n","status","查看上一次项目");
+    cout << f("\t{YELLOW}\t\t{DARK_GRAY}\n","clear","清理上次构建生成的可执行文件");
+    cout << f("\t{YELLOW}\t\t{DARK_GRAY}\n","make",f("基于上次构建记录 {} 重新编译项目", std::string(LAST_BUILD_INFO)));
+    cout << f("\t{YELLOW}\t\t{DARK_GRAY}\n","run","运行上次构建的可执行文件（未构建则提示是否编译）");
+    cout << f("\t{YELLOW}\t\t{DARK_GRAY}\n","remake","重新编译并自动运行上次构建的项目（等价于 make + run）");
+    cout << f("\t{YELLOW}\t\t{DARK_GRAY}\n","status","查看上一次项目");
     cout << f("{LIGHT_GREEN}","示例：\n");
     cout << f("\t示例1：编译运行 test.cpp 文件\n");
-    cout << f("\t\t{LIGHT_GRAY} test.cpp\t（工具会自动生成 test 可执行文件并运行）\n", std::string(argv[0]));
+    cout << f("\t\t{DARK_GRAY} test.cpp\t（工具会自动生成 test 可执行文件并运行）\n", std::string(argv[0]));
     cout << f("\t示例2：运行上次构建的项目\n");
-    cout << f("\t\t{LIGHT_GRAY} run\t（若上次构建文件不存在，会提示是否重新编译）\n", std::string(argv[0]));
+    cout << f("\t\t{DARK_GRAY} run\t（若上次构建文件不存在，会提示是否重新编译）\n", std::string(argv[0]));
     cout << "════════════════════════════════════════════════════\n";
     return Accepted;
   } else if (arg == "--env") {
@@ -376,7 +379,7 @@ int main(int argc, char *argv[]) {
     std::string cmd_rm_cache_dir = RM_FOLDER + FILE_PREFIX + CACHE_DIR_NAME;
     int errCount = 0;
     if (folderExist(FILE_PREFIX + CACHE_DIR_NAME)) {
-      cout << f("(INFO) 执行清理命令 : {LIGHT_GRAY}\n", cmd_rm_cache_dir);
+      cout << f("(INFO) 执行清理命令 : {DARK_GRAY}\n", cmd_rm_cache_dir);
       errCount += systemSilent(cmd_rm_cache_dir.c_str());
     }
     if (fileExist(lastBuildName.c_str())) {
@@ -384,7 +387,7 @@ int main(int argc, char *argv[]) {
       //     .append("执行清理命令：")
       //     .append(cmd_rm_build_file, ConsoloColor::LightGray)
       //     .printMap();
-      cout << f("(INFO) 执行清理命令：{LIGHT_GRAY}",cmd_rm_build_file);
+      cout << f("(INFO) 执行清理命令：{DARK_GRAY}",cmd_rm_build_file);
 
       errCount += systemSilent(cmd_rm_build_file.c_str());
     }
@@ -511,7 +514,7 @@ int main(int argc, char *argv[]) {
     //     .append("无法创建文件夹 :")
     //     .append(CACHE_DIR_NAME, ConsoloColor::LightGray)
     //     .printMap();
-    cout << f("(ERROR) 无法创建文件夹 : {LIGHT_GRAY}\n", CACHE_DIR_NAME);
+    cout << f("(ERROR) 无法创建文件夹 : {DARK_GRAY}\n", CACHE_DIR_NAME);
     return EnvErr;
   };
 
@@ -522,7 +525,7 @@ int main(int argc, char *argv[]) {
     //     .append("无法写入缓存文件 :")
     //     .append(writeReturn.second, ConsoloColor::LightGray)
     //     .printMap();
-    cout << f("(WARN) 无法写入缓存文件 : {LIGHT_GRAY}\n", writeReturn.second);
+    cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n", writeReturn.second);
   }
 
   if (!fileExist((getPureContent(arg) + EXE_SUFFIX).c_str()))
