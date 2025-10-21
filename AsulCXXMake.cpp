@@ -1,7 +1,7 @@
 
 #include <chrono>
 #define PROJECT_NAME std::string("AMake")
-#define PROJECT_VERSION std::string("alpha-v0.1.4")
+#define PROJECT_VERSION std::string("alpha-v0.2.0")
 
 #include <cstdio>
 #include <cstdlib>
@@ -11,11 +11,13 @@
 #include "AsulFormatString.h"
 #include "Def.h"
 #include "FileTools.h"
+#include "3rd/json.hpp"
 #include <ctime>
 
 
-
+using json = nlohmann::json;
 using namespace AsulKit::FileTools;
+
 
 using std::cout;
 
@@ -38,7 +40,13 @@ bool build(const std::string projectNameSource) {
     if (fileStampStatus.first == false) {
       cout << f("(WARN) 获取文件修改时间错误！\n");
     } else {
-      auto writeReturn = writeToFile(CACHE_TIME_INFO, fileStampStatus.second);
+      // auto writeReturn = writeToFile(CACHE_TIME_INFO, fileStampStatus.second);
+      json stampDoc;
+      if(fileExist(CACHE_TIME_INFO)) {
+         stampDoc = json::parse(getFileContent(CACHE_TIME_INFO));
+      }
+      stampDoc[projectNameSource] = fileStampStatus.second;
+      auto writeReturn = writeToFile(CACHE_TIME_INFO, stampDoc.dump(4));
       if (!writeReturn.first) {
         cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n",
                   writeReturn.second);
@@ -59,19 +67,25 @@ int run(const std::string projectNameSource) {
   std::string inStream = "";
   std::string projectName = getPureContent(projectNameSource);
   bool hasOutStream = false;
-  if (fileExist((getPureContent(projectName) + EXE_SUFFIX).c_str()) &&
-      fileExist(CACHE_TIME_INFO)) {
-    std::string lastStamp;
+  std::string lastStamp;
+  std::pair<bool, std::string> fileStampStatus;
+  if(fileExist(CACHE_TIME_INFO)){
     try {
       lastStamp = getFileContent(CACHE_TIME_INFO);
+      json stampDoc=json::parse(lastStamp);
+      if(stampDoc.find(projectNameSource)==stampDoc.end()){
+          lastStamp="";
+      }else lastStamp=stampDoc[projectNameSource].get<std::string>();
     } catch (const std::runtime_error &e) {
       cout << f("(ERROR) 获取缓存时间失败: {DARK_GRAY}\n", e.what());
       return BadFile;
     }
-    auto fileStampStatus = getFileModificationTime(projectNameSource);
+    fileStampStatus = getFileModificationTime(projectNameSource);
     if (!fileStampStatus.first) {
       cout<<f("(ERROR) 获取文件修改时间失败\n");
     }
+  }
+  if (fileExist((getPureContent(projectName) + EXE_SUFFIX).c_str())) {
     if (fileStampStatus.second != lastStamp) {
       cout << f("(INFO) 源代码 {YELLOW} 似乎已修改但未编译，是否立刻编译？\n", projectNameSource);
       cout << f("(INFO) 上次编译时间: {DARK_GRAY}\n(ASK_Y): ", lastStamp);
@@ -94,7 +108,38 @@ int run(const std::string projectNameSource) {
       cout << f("(INFO) 上次编译时间: {DARK_GRAY}\n", lastStamp);
     }
   }
-
+  if(lastStamp.empty()){
+      cout << f("(WARN) 未找到缓存时间文件，但已存在可执行文件，是否直接执行并记录当前时间为修改时间\n(ASK_Y) ");
+      char getIn = getchar();
+      switch (getIn) {
+        default:
+        case 'Y':
+        case 'y':
+          {
+              auto fileStampStatus = getFileModificationTime(projectNameSource);
+              if (fileStampStatus.first == false) {
+                  cout << f("(WARN) 获取文件修改时间错误！\n");
+              } else {
+                  // auto writeReturn = writeToFile(CACHE_TIME_INFO, fileStampStatus.second);
+                  json stampDoc;
+                  if(fileExist(CACHE_TIME_INFO)) {
+                     stampDoc = json::parse(getFileContent(CACHE_TIME_INFO));
+                  }
+                  stampDoc[projectNameSource] = fileStampStatus.second;
+                  auto writeReturn = writeToFile(CACHE_TIME_INFO, stampDoc.dump(4));
+                  if (!writeReturn.first) {
+                    cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n",
+                              writeReturn.second);
+                  }
+              }
+          }
+          break;
+        case 'N':
+        case 'n':
+          cout << f("(INFO) 用户已取消运行\n");
+          return Accepted;
+      }
+  }
   if (fileExist((projectName + FILE_IN_SUFFIX).c_str()))
     inStream = " < " + projectName + FILE_IN_SUFFIX;
   if (fileExist((projectName + FILE_OUT_SUFFIX).c_str()))
@@ -352,6 +397,8 @@ int main(int argc, char *argv[]) {
   if (fileExist(LAST_BUILD_INFO)) {
     try {
       lastBuild = getFileContent(LAST_BUILD_INFO);
+      json lastBuildDoc=json::parse(lastBuild);
+      lastBuild=lastBuildDoc[PROJECT_NAME].get<std::string>();
     } catch (const std::runtime_error &e) {
       // printErr(e.what());
       // print("\n");
@@ -482,7 +529,7 @@ int main(int argc, char *argv[]) {
     //     .append("上次构建的项目：")
     //     .append(lastBuild)
     //     .printMap();
-    cout << f("(SUCCESS) 上次构建的项目：{YELLOW} 完成\n", lastBuild);
+    cout << f("(SUCCESS) 上次构建的项目：{YELLOW} \n", lastBuild);
     return Accepted;
   }
 
@@ -518,7 +565,13 @@ int main(int argc, char *argv[]) {
     return EnvErr;
   };
 
-  auto writeReturn = writeToFile(LAST_BUILD_INFO, targetProject);
+  // auto writeReturn = writeToFile(LAST_BUILD_INFO, targetProject);
+  json lastBuildDoc;
+  if(fileExist(LAST_BUILD_INFO)) {
+     lastBuildDoc = json::parse(getFileContent(LAST_BUILD_INFO));
+  }
+  lastBuildDoc[PROJECT_NAME]=targetProject;
+  auto writeReturn = writeToFile(LAST_BUILD_INFO, lastBuildDoc.dump(4));
   if (!writeReturn.first) {
     // PrintMap<std::string>()
     //     .append(LogLevel::Warn)
@@ -533,6 +586,7 @@ int main(int argc, char *argv[]) {
     if (!build(targetProject))
       return BuildErr;
 
+  
   return run(targetProject);
 }
 // To-do : 配置清单 -> AMake/.config {targetLanguage:JSON}

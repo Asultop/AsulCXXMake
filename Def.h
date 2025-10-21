@@ -24,8 +24,10 @@
 #define CACHE_DIR_NAME std::string(".cache")
 #define FILE_IN_SUFFIX std::string(".in")
 #define FILE_OUT_SUFFIX std::string(".out")
+
+//Need to put on .env
 #define CPP_COMPILER std::string("g++ ")
-#define COMPILER_FLAGS std::string("-O2 ")
+#define COMPILER_FLAGS std::string("-O2 -std=c++17 ")
 #define OUTPUT(x) std::string("-o "+x+EXE_SUFFIX+" ")
 //feDretliF
 
