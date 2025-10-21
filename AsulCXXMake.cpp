@@ -292,8 +292,11 @@ int main(int argc, char *argv[]) {
 #elif defined(MACOS_X86) || defined(MACOS_ARM)
         "{WHITE}"
 #endif
-
-        " {LIGHT_GRAY} {YELLOW}\t\t║\n\
+        " {LIGHT_GRAY} {YELLOW}\t\t"
+#ifdef defined(WINDOWS_64) || defined(WINDOWS_32)
+        "\t"
+#endif
+      "║\n\
 ╚═══════════════════════════════════════╝\n",
         "Asul SingleFie Cpp 构建工具", "AsulTop", PROJECT_VERSION,
         __DATE__ "@" __TIME__, OS_PREFIX,"on", ARCH_SUFFIX);
