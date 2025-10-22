@@ -15,6 +15,8 @@
 #include "3rd/json.hpp"
 #include <ctime>
 
+std::string CPP_COMPILER = "g++";
+std::string COMPILER_FLAGS = "-O2 -std=c++20";
 
 using json = nlohmann::json;
 using namespace AsulKit::FileTools;
@@ -26,7 +28,12 @@ std::map<FileType, std::string> FileTypeSuffix = {
     {FileType::C, ".c"},
     {FileType::CPP, ".cpp"},
 };
-
+// Waiting to be implemented
+// std::map<FileType, std::string> FileTypeCompiler = {
+//     {FileType::C, "gcc "},
+//     {FileType::CPP, "g++ "},
+// };
+// gnitiaW
 
 bool getStatusYesOrNo(char getIn, bool defaultYes=true, std::function<void()> onYes=[](){}, std::function<void()> onNo=[](){}) {
     switch (getIn) {
@@ -55,8 +62,8 @@ bool build(const std::string projectNameSource) {
   SUFFIX = FileTypeSuffix[type];
   ProgramSUFFIX = SUFFIX;
   std::replace(ProgramSUFFIX.begin(), ProgramSUFFIX.end(), '.', '_');
-  
-  std::string cmd = CPP_COMPILER + COMPILER_FLAGS + projectName + SUFFIX + " " +
+
+  std::string cmd = CPP_COMPILER + " " + COMPILER_FLAGS + " " + projectName + SUFFIX + " " +
                     OUTPUT(projectName+ProgramSUFFIX);
   cout << f("(INFO) 执行构建命令: {DARK_GRAY} \n", cmd);
 
@@ -242,6 +249,28 @@ int main(int argc, char *argv[]) {
   asul_formatter().installColorFormatAdapter();
   asul_formatter().installLogLabelAdapter();
   asul_formatter().installAskLabelAdapter();
+  if(fileExist(ENV_PATH)==false){
+      cout << f("(WARN) 未检测到环境文件，正在生成默认环境文件...\n");
+      createDirectoryIfNotExists(CACHE_DIR_NAME);
+      json envDoc;
+      envDoc["CPP_COMPILER"] = CPP_COMPILER;
+      envDoc["COMPILER_FLAGS"] = COMPILER_FLAGS;
+      auto writeReturn = writeToFile(ENV_PATH, envDoc.dump(4));
+      if (!writeReturn.first) {
+        cout << f("(ERROR) 无法写入环境文件 : {DARK_GRAY}\n", writeReturn.second);
+        return EnvErr;
+      } else {
+        cout << f("(SUCCESS) 生成默认环境文件完成，路径: {DARK_GRAY}\n", ENV_PATH);
+      }
+  }
+  std::string envFileContent = getFileContent(ENV_PATH);
+  json envDoc = json::parse(envFileContent);
+  if (envDoc.find("CPP_COMPILER") != envDoc.end()) {
+    CPP_COMPILER = envDoc["CPP_COMPILER"].get<std::string>();
+  }
+  if (envDoc.find("COMPILER_FLAGS") != envDoc.end()) {
+    COMPILER_FLAGS = envDoc["COMPILER_FLAGS"].get<std::string>();
+  }
 
   if (argc != 2) {
     cout << f("(ERROR) 参数应有 {DARK_GRAY} 个，而这里出现 {DARK_GRAY} "

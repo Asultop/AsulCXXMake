@@ -26,8 +26,10 @@
 #define FILE_OUT_SUFFIX std::string(".out")
 
 //Need to put on .env
-#define CPP_COMPILER std::string("g++ ")
-#define COMPILER_FLAGS std::string("-O2 -std=c++17 ")
+// #define CPP_COMPILER std::string("g++ ")
+// #define COMPILER_FLAGS std::string("-O2 -std=c++17 ")
+//deeN --> Already moved to Global
+
 #define OUTPUT(x) std::string("-o "+x+EXE_SUFFIX+" ")
 //feDretliF
 
@@ -44,31 +46,32 @@
     #define LAST_BUILD_INFO ".cache\\Last.build"
     #define CACHE_STREAM    ".cache\\Last.temp.stream"
     #define CACHE_TIME_INFO ".cache\\Last.build.stamp"
+    #define ENV_PATH    ".cache\\.env"
     #define FILE_PREFIX     std::string("")
-#elif defined(__APPLE__) && defined(__MACH__)
-    #define CMD_REMOVE      std::string("rm ")
-    #define RM_FILE         CMD_REMOVE + std::string("-f ")
-    #define RM_FOLDER       CMD_REMOVE + std::string("-f -R ")
-    #define CMD_COPY        std::string("cp -f ")
-    #define INSTALL_DIR     std::string("/usr/local/bin")
-    #define INSTALL_PATH    std::string(INSTALL_DIR+"/"+PROJECT_NAME)
-    #define EXE_SUFFIX      std::string("")
-    #define LAST_BUILD_INFO ".cache/Last.build"
-    #define CACHE_TIME_INFO ".cache/Last.build.stamp"
-    #define CACHE_STREAM    ".cache/Last.temp.stream"
-    #define FILE_PREFIX     std::string("./")
-#elif defined(__linux__)
-    #define CMD_REMOVE      std::string("rm ")
-    #define RM_FILE         CMD_REMOVE + std::string("-f ")
-    #define RM_FOLDER       CMD_REMOVE + std::string("-f -R ")
-    #define CMD_COPY        std::string("cp -f ")
-    #define INSTALL_DIR    std::string("/usr/local/bin")
-    #define INSTALL_PATH    std::string(INSTALL_DIR+"/"+PROJECT_NAME)
-    #define EXE_SUFFIX      std::string("")
-    #define LAST_BUILD_INFO ".cache/Last.build"
-    #define CACHE_TIME_INFO ".cache/Last.build.stamp"
-    #define CACHE_STREAM    ".cache/Last.temp.stream"
-    #define FILE_PREFIX     std::string("./")
+// #elif defined(__APPLE__) && defined(__MACH__)
+//     #define CMD_REMOVE      std::string("rm ")
+//     #define RM_FILE         CMD_REMOVE + std::string("-f ")
+//     #define RM_FOLDER       CMD_REMOVE + std::string("-f -R ")
+//     #define CMD_COPY        std::string("cp -f ")
+//     #define INSTALL_DIR     std::string("/usr/local/bin")
+//     #define INSTALL_PATH    std::string(INSTALL_DIR+"/"+PROJECT_NAME)
+//     #define EXE_SUFFIX      std::string("")
+//     #define LAST_BUILD_INFO ".cache/Last.build"
+//     #define CACHE_TIME_INFO ".cache/Last.build.stamp"
+//     #define CACHE_STREAM    ".cache/Last.temp.stream"
+//     #define FILE_PREFIX     std::string("./")
+// #elif defined(__linux__)
+//     #define CMD_REMOVE      std::string("rm ")
+//     #define RM_FILE         CMD_REMOVE + std::string("-f ")
+//     #define RM_FOLDER       CMD_REMOVE + std::string("-f -R ")
+//     #define CMD_COPY        std::string("cp -f ")
+//     #define INSTALL_DIR    std::string("/usr/local/bin")
+//     #define INSTALL_PATH    std::string(INSTALL_DIR+"/"+PROJECT_NAME)
+//     #define EXE_SUFFIX      std::string("")
+//     #define LAST_BUILD_INFO ".cache/Last.build"
+//     #define CACHE_TIME_INFO ".cache/Last.build.stamp"
+//     #define CACHE_STREAM    ".cache/Last.temp.stream"
+//     #define FILE_PREFIX     std::string("./")
 #else
     #define CMD_REMOVE      std::string("rm ")
     #define RM_FILE         CMD_REMOVE + std::string("-f ")
@@ -80,6 +83,7 @@
     #define LAST_BUILD_INFO ".cache/Last.build"
     #define CACHE_TIME_INFO ".cache/Last.build.stamp"
     #define CACHE_STREAM    ".cache/Last.temp.stream"
+    #define ENV_PATH    ".cache/.env"
     #define FILE_PREFIX     std::string("./")
 #endif
 //feDmroftalP
@@ -179,5 +183,7 @@ typedef enum{
     RE,
     CE
 } JudgeState;
+
+
 //feDepyt
 #endif // Def.h
