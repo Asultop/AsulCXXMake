@@ -1,5 +1,8 @@
 1.*
 2.*
+*.exe
+1_cpp
+2_cpp
 1
 2
 AMake
