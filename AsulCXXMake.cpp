@@ -14,6 +14,7 @@
 #include "FileTools.h"
 #include "3rd/json.hpp"
 #include <ctime>
+#include <exception>
 
 std::string CPP_COMPILER = "g++";
 std::string COMPILER_FLAGS = "-O2 -std=c++20";
@@ -34,6 +35,41 @@ std::map<FileType, std::string> FileTypeSuffix = {
 //     {FileType::CPP, "g++ "},
 // };
 // gnitiaW
+
+std::pair<bool,std::string> getArg(std::string path,std::string key){
+  std::string value;
+  json doc;
+  if(fileExist(path.c_str())==false){
+      return {false,"找不到文件"};
+  }
+  try{
+      std::string fileContent=getFileContent(path.c_str());
+      doc=json::parse(fileContent);
+      if(doc.find(key)==doc.end()){
+          return {false,"找不到参数"};
+      }
+  }catch(const std::exception& e){
+      return {false,"解析 JSON 失败"};
+  }
+  value=doc[key].get<std::string>();
+  return {true,value};
+}
+
+bool setArg(std::string path,std::string key,std::string value){
+    json doc;
+    if(fileExist(path.c_str())){
+        try{
+            std::string fileContent=getFileContent(path.c_str());
+            doc=json::parse(fileContent);
+        }catch(const std::exception& e){
+            cout << f("(ERROR) 解析 JSON 失败: {DARK_GRAY}\n", e.what());
+            return false;
+        }
+    }
+    doc[key]=value;
+    auto writeReturn=writeToFile(path.c_str(),doc.dump(4));
+    return writeReturn.first;
+}
 
 bool getStatusYesOrNo(char getIn, bool defaultYes=true, std::function<void()> onYes=[](){}, std::function<void()> onNo=[](){}) {
     switch (getIn) {
@@ -74,15 +110,18 @@ bool build(const std::string projectNameSource) {
     if (fileStampStatus.first == false) {
       cout << f("(WARN) 获取文件修改时间错误！\n");
     } else {
-      json stampDoc;
-      if(fileExist(CACHE_TIME_INFO)) {
-         stampDoc = json::parse(getFileContent(CACHE_TIME_INFO));
-      }
-      stampDoc[projectNameSource] = fileStampStatus.second;
-      auto writeReturn = writeToFile(CACHE_TIME_INFO, stampDoc.dump(4));
-      if (!writeReturn.first) {
-        cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n",
-                  writeReturn.second);
+      // json stampDoc;
+      // if(fileExist(CACHE_TIME_INFO)) {
+      //    stampDoc = json::parse(getFileContent(CACHE_TIME_INFO));
+      // }
+      // stampDoc[projectNameSource] = fileStampStatus.second;
+      // auto writeReturn = writeToFile(CACHE_TIME_INFO, stampDoc.dump(4));
+      // if (!writeReturn.first) {
+      //   cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n",
+      //             writeReturn.second);
+      // }
+      if(!setArg(CACHE_TIME_INFO,projectNameSource,fileStampStatus.second)){
+          cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n", projectNameSource);
       }
     }
     cout << f("(SUCCESS) 构建 {YELLOW} 完成\n", projectName);
@@ -106,11 +145,15 @@ int run(const std::string projectNameSource) {
   std::pair<bool, std::string> fileStampStatus;
   if(fileExist(CACHE_TIME_INFO)){
     try {
-      lastStamp = getFileContent(CACHE_TIME_INFO);
-      json stampDoc=json::parse(lastStamp);
-      if(stampDoc.find(projectNameSource)==stampDoc.end()){
-          lastStamp="";
-      }else lastStamp=stampDoc[projectNameSource].get<std::string>();
+      // lastStamp = getFileContent(CACHE_TIME_INFO);
+      // json stampDoc=json::parse(lastStamp);
+      // if(stampDoc.find(projectNameSource)==stampDoc.end()){
+      //     lastStamp="";
+      // }else lastStamp=stampDoc[projectNameSource].get<std::string>();
+      auto lS = getArg(CACHE_TIME_INFO,projectNameSource);
+      if(!lS.first) lastStamp="";
+      else lastStamp=lS.second;
+
     } catch (const std::runtime_error &e) {
       cout << f("(ERROR) 获取缓存时间失败: {DARK_GRAY}\n", e.what());
       return BadFile;
@@ -139,32 +182,29 @@ int run(const std::string projectNameSource) {
   }
   if(fileExist((projectName+ EXE_SUFFIX).c_str()) && lastStamp.empty()){
       cout << f("(WARN) 未找到缓存时间文件，但已存在可执行文件，是否直接执行？\n(ASK_Y) ");
-      getStatusYesOrNo(getchar(), true, []() {
+      char ch=getchar();
+      getStatusYesOrNo(ch, true, []() {
           // do nothing, continue
       }, []() {
           cout << f("(INFO) 用户已取消运行\n");
-          return Accepted;
+          // return Accepted;
+          while(true) exit(Accepted);
       });
       cout << f("(INFO) 写入缓存时间？\n (ASK_N) ");
-      getStatusYesOrNo(getchar(), false, [&]() {
+      char ch2=getchar();
+      getStatusYesOrNo(ch2, false, [&]() {
           auto fileStampStatus = getFileModificationTime(projectNameSource);
           if (fileStampStatus.first == false) {
               cout << f("(WARN) 获取文件修改时间错误！\n");
           } else {
-              json stampDoc;
-              if(fileExist(CACHE_TIME_INFO)) {
-                 stampDoc = json::parse(getFileContent(CACHE_TIME_INFO));
-              }
-              stampDoc[projectNameSource] = fileStampStatus.second;
-              auto writeReturn = writeToFile(CACHE_TIME_INFO, stampDoc.dump(4));
-              if (!writeReturn.first) {
-                cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n",
-                          writeReturn.second);
+              if(!setArg(CACHE_TIME_INFO,projectNameSource,fileStampStatus.second)){
+                  cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n", projectNameSource);
               }
           }
       },[&](){
           cout << f("(INFO) 未写入文件\n");
-          return Accepted;
+          // return Accepted;
+          // while(true) exit(Accepted);
       });
   }
   if (fileExist((projectName + FILE_IN_SUFFIX).c_str()))
@@ -249,29 +289,23 @@ int main(int argc, char *argv[]) {
   asul_formatter().installColorFormatAdapter();
   asul_formatter().installLogLabelAdapter();
   asul_formatter().installAskLabelAdapter();
-  if(fileExist(ENV_PATH)==false){
-      cout << f("(WARN) 未检测到环境文件，正在生成默认环境文件...\n");
-      createDirectoryIfNotExists(CACHE_DIR_NAME);
-      json envDoc;
-      envDoc["CPP_COMPILER"] = CPP_COMPILER;
-      envDoc["COMPILER_FLAGS"] = COMPILER_FLAGS;
-      auto writeReturn = writeToFile(ENV_PATH, envDoc.dump(4));
-      if (!writeReturn.first) {
-        cout << f("(ERROR) 无法写入环境文件 : {DARK_GRAY}\n", writeReturn.second);
-        return EnvErr;
-      } else {
-        cout << f("(SUCCESS) 生成默认环境文件完成，路径: {DARK_GRAY}\n", ENV_PATH);
-      }
+  
+  // std::string envFileContent = getFileContent(ENV_PATH);
+  // json envDoc = json::parse(envFileContent);
+  // if (envDoc.find("CPP_COMPILER") != envDoc.end()) {
+  //   CPP_COMPILER = envDoc["CPP_COMPILER"].get<std::string>();
+  // }
+  // if (envDoc.find("COMPILER_FLAGS") != envDoc.end()) {
+  //   COMPILER_FLAGS = envDoc["COMPILER_FLAGS"].get<std::string>();
+  // }
+  auto getCompilerArg = getArg(ENV_PATH,"CPP_COMPILER");
+  if(getCompilerArg.first){
+      CPP_COMPILER=getCompilerArg.second;
   }
-  std::string envFileContent = getFileContent(ENV_PATH);
-  json envDoc = json::parse(envFileContent);
-  if (envDoc.find("CPP_COMPILER") != envDoc.end()) {
-    CPP_COMPILER = envDoc["CPP_COMPILER"].get<std::string>();
+  auto getFlagsArg = getArg(ENV_PATH,"COMPILER_FLAGS");
+  if(getFlagsArg.first){
+      COMPILER_FLAGS=getFlagsArg.second;
   }
-  if (envDoc.find("COMPILER_FLAGS") != envDoc.end()) {
-    COMPILER_FLAGS = envDoc["COMPILER_FLAGS"].get<std::string>();
-  }
-
   if (argc != 2) {
     cout << f("(ERROR) 参数应有 {DARK_GRAY} 个，而这里出现 {DARK_GRAY} "
               "个\n",
@@ -285,10 +319,69 @@ int main(int argc, char *argv[]) {
       !
 #endif
       systemSilent(std::string(std::string("where ") + CPP_COMPILER).c_str());
+
+  if(arg == "--init"){
+      if(fileExist(ENV_PATH)){
+          cout << f("(WARN) 环境文件已存在，是否覆盖？\n(ASK_N) ");
+          char getIn = getchar();
+          bool proceed = getStatusYesOrNo(getIn, false, []() {
+              // do nothing, continue
+          }, []() {
+              cout << f("(INFO) 用户已取消初始化\n");
+              exit(Accepted);
+          });
+          if(!proceed){
+              return Accepted;
+          }
+      }else{
+        cout << f("(INFO) 正在生成默认环境文件...\n");
+        createDirectoryIfNotExists(CACHE_DIR_NAME);
+        
+      }
+
+      // json envDoc;
+      // envDoc["CPP_COMPILER"] = CPP_COMPILER;
+      // envDoc["COMPILER_FLAGS"] = COMPILER_FLAGS;
+      // auto writeReturn = writeToFile(ENV_PATH, envDoc.dump(4));
+      // if (!writeReturn.first) {
+      //   cout << f("(ERROR) 无法写入环境文件 : {DARK_GRAY}\n", writeReturn.second);
+      //   return EnvErr;
+      // } else {
+      //   cout << f("(SUCCESS) 生成默认环境文件完成，路径: {DARK_GRAY}\n", ENV_PATH);
+      // }
+      if(setArg(ENV_PATH,"CPP_COMPILER",CPP_COMPILER)==false){
+          cout << f("(ERROR) 无法将 {DARK_GRAY} 写入环境文件 : {DARK_GRAY}\n", "CPP_COMPILER", ENV_PATH);
+          return EnvErr;
+      }
+      if(setArg(ENV_PATH,"COMPILER_FLAGS",COMPILER_FLAGS)==false){
+          cout << f("(ERROR) 无法将 {DARK_GRAY} 写入环境文件 : {DARK_GRAY}\n", "COMPILER_FLAGS", ENV_PATH);
+          return EnvErr;
+      }
+      cout << f("(SUCCESS) 生成默认环境文件完成，路径: {DARK_GRAY}\n", ENV_PATH);
+      return Accepted;
+  } 
+  if(fileExist(ENV_PATH)==false){
+      // cout << f("(WARN) 未检测到环境文件，正在生成默认环境文件...\n");
+      // createDirectoryIfNotExists(CACHE_DIR_NAME);
+      // json envDoc;
+      // envDoc["CPP_COMPILER"] = CPP_COMPILER;
+      // envDoc["COMPILER_FLAGS"] = COMPILER_FLAGS;
+      // auto writeReturn = writeToFile(ENV_PATH, envDoc.dump(4));
+      // if (!writeReturn.first) {
+      //   cout << f("(ERROR) 无法写入环境文件 : {DARK_GRAY}\n", writeReturn.second);
+      //   return EnvErr;
+      // } else {
+      //   cout << f("(SUCCESS) 生成默认环境文件完成，路径: {DARK_GRAY}\n", ENV_PATH);
+      // }
+      cout << f("(ERROR) 未检测到环境文件 : {DARK_GRAY}\n", ENV_PATH);
+      cout << f("(INFO) 请使用 {YELLOW} 选项生成默认环境文件\n", FILE_PREFIX + PROJECT_NAME + EXE_SUFFIX + " --init");
+      return EnvErr;
+  }
   if (!hasCXXCompiler && arg != "--env") {
     cout<< f("(ERROR) 未检测到环境中的编译器!\n(INFO) 使用 {YELLOW} 来修复环境\n", FILE_PREFIX + PROJECT_NAME + EXE_SUFFIX + " --env");
     // return CompilerErr;
   }
+
   if (arg == "--install") {
 #ifdef _WIN32
     bool runAsAdmin = [=]() {
@@ -342,8 +435,8 @@ int main(int argc, char *argv[]) {
     }
     std::string cmd = CMD_COPY + "\"" + arg0 + "\"" + " \"" + winSysDir + "\\" +
                       PROJECT_NAME + EXE_SUFFIX + "\"";
-    cout << "[DEBUG]" << cmd << std::endl;
-    if (system(cmd.c_str()) == 0) {
+    // cout << "[DEBUG]" << cmd << std::endl;
+    if (systemSilent(cmd.c_str()) == 0) {
       cout << f("(SUCCESS) 安装到 {DARK_GRAY} \n", winSysDir + "\\" + PROJECT_NAME + EXE_SUFFIX);
       system("pause");
       return Accepted;
@@ -441,9 +534,14 @@ int main(int argc, char *argv[]) {
   std::string lastBuild = "";
   if (fileExist(LAST_BUILD_INFO)) {
     try {
-      lastBuild = getFileContent(LAST_BUILD_INFO);
-      json lastBuildDoc=json::parse(lastBuild);
-      lastBuild=lastBuildDoc[PROJECT_NAME].get<std::string>();
+      // lastBuild = getFileContent(LAST_BUILD_INFO);
+      // json lastBuildDoc=json::parse(lastBuild);
+      // lastBuild=lastBuildDoc[PROJECT_NAME].get<std::string>();
+      auto LB= getArg(LAST_BUILD_INFO,PROJECT_NAME);
+      if(!LB.first){
+          lastBuild="";
+      }else lastBuild=LB.second;
+
     } catch (const std::runtime_error &e) {
       cout << f("(ERROR) {}\n",e.what());
       return BadFile;
@@ -539,15 +637,20 @@ int main(int argc, char *argv[]) {
     cout << f("(ERROR) 无法创建文件夹 : {DARK_GRAY}\n", CACHE_DIR_NAME);
     return EnvErr;
   };
-  json lastBuildDoc;
-  if(fileExist(LAST_BUILD_INFO)) {
-     lastBuildDoc = json::parse(getFileContent(LAST_BUILD_INFO));
+
+  // json lastBuildDoc;
+  // if(fileExist(LAST_BUILD_INFO)) {
+  //    lastBuildDoc = json::parse(getFileContent(LAST_BUILD_INFO));
+  // }
+  // lastBuildDoc[PROJECT_NAME]=targetProject;
+  // auto writeReturn = writeToFile(LAST_BUILD_INFO, lastBuildDoc.dump(4));
+  // if (!writeReturn.first) {
+  //   cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n", writeReturn.second);
+  // }
+  if(!setArg(LAST_BUILD_INFO,PROJECT_NAME,targetProject)){
+      cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n", LAST_BUILD_INFO);
   }
-  lastBuildDoc[PROJECT_NAME]=targetProject;
-  auto writeReturn = writeToFile(LAST_BUILD_INFO, lastBuildDoc.dump(4));
-  if (!writeReturn.first) {
-    cout << f("(WARN) 无法写入缓存文件 : {DARK_GRAY}\n", writeReturn.second);
-  }
+
   std::string ProgramSUFFIX = FileTypeSuffix[getType(arg)];
   std::replace(ProgramSUFFIX.begin(), ProgramSUFFIX.end(), '.', '_');
   if (!fileExist((getPureContent(arg)+ ProgramSUFFIX + EXE_SUFFIX).c_str()))

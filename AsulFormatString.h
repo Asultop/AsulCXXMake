@@ -1,5 +1,27 @@
+/*
+
+ *   ______     ______   ______    
+ *  /\  __ \   /\  ___\ /\  ___\   
+ *  \ \  __ \  \ \  __\ \ \___  \  
+ *   \ \_\ \_\  \ \_\    \/\_____\ 
+ *    \/_/\/_/   \/_/     \/_____/ 
+ *                                 
+
+    File        : AsulFormatString.h
+    Description : AFS 格式化 std::string 文件
+
+    Copyright (c) 2025 AsulTop
+    Author     : AsulTop (GitHub: AsulTop)
+    Contact    : Alivn@asul.top
+
+    MIT License
+*/
+
+
 #ifndef ASULFORMATSTRING_H
 #define ASULFORMATSTRING_H
+
+
 
 #include <iostream>
 #include <map>
