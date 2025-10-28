@@ -586,6 +586,11 @@ int main(int argc, char *argv[]) {
       return BuildErr;
     }
     std::string lastBuildPure = getPureContent(lastBuild);
+    FileType type = getType(lastBuild);
+    std::string SUFFIX = FileTypeSuffix[type];
+    std::replace(SUFFIX.begin(), SUFFIX.end(), '.', '_');
+    lastBuildPure+=SUFFIX;
+    
     if (fileExist((lastBuildPure + EXE_SUFFIX).c_str())) {
       return run(lastBuild);
     } else {
@@ -607,8 +612,14 @@ int main(int argc, char *argv[]) {
       return BuildErr;
     }
     std::string lastBuildPure = getPureContent(lastBuild);
+    FileType type = getType(lastBuild);
+    std::string SUFFIX = FileTypeSuffix[type];
+    std::replace(SUFFIX.begin(), SUFFIX.end(), '.', '_');
+    lastBuildPure+=SUFFIX;
+    
+    std::cout << f("(INFO) 上次构建的项目：{YELLOW} \n", lastBuildPure);
 
-    if (!fileExist(std::string(lastBuildPure + EXE_SUFFIX).c_str()))
+    if (!fileExist((std::string(lastBuildPure) + std::string(EXE_SUFFIX)).c_str()))
       cout << f("(WARN) 不存在构建文件，此时推荐使用 {YELLOW} 命令，以减少错误警报！\n", "make");
     if (!build(lastBuild))
       return BuildErr;
