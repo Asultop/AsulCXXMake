@@ -101,7 +101,7 @@ jobs:
       if: startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos')
       run: |
         which ${{ matrix.compiler }} || echo "编译器 ${{ matrix.compiler }} 未找到"
-        ${{ matrix.compiler }} --version || echo "无法获取版本信息"
+        ${{ matrix.exe }} --init && ${{ matrix.exe }} --version || echo "无法获取版本信息"
 
     - name: 验证编译器 (Windows)
       if: startsWith(matrix.host, 'windows')
@@ -310,7 +310,7 @@ jobs:
       if: matrix.testable && (startsWith(matrix.host, 'ubuntu') || startsWith(matrix.host, 'macos'))
       run: |
         cd build
-        ${{ matrix.exe }} --version || echo "测试执行失败"
+        ${{ matrix.exe }} --init && ${{ matrix.exe }} --version || echo "测试执行失败"
 
     - name: 运行测试 (Windows)
       if: matrix.testable && startsWith(matrix.host, 'windows')
@@ -319,10 +319,10 @@ jobs:
         cd build
         try {
           Write-Host "测试主程序版本:"
-          & ${{ matrix.exe }} --version
+          & ${{ matrix.exe }} --init && ${{ matrix.exe }} --version
           
           Write-Host "测试GBK版本:"
-          & ${{ matrix.gbk-exe }} --version
+          & ${{ matrix.exe }} --init && ${{ matrix.exe }} --version
           
           Write-Host "所有测试执行成功"
         } catch {
