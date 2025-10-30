@@ -10,4 +10,6 @@ AsulCXXMake
 AMake.exe
 AsulCXXMake.exe
 .cache/*
+.cache
+.vscode
 .vscode/*

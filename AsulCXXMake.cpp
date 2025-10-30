@@ -1,7 +1,7 @@
 
 #include <chrono>
 #define PROJECT_NAME std::string("AMake")
-#define PROJECT_VERSION std::string("alpha-v0.2.0")
+#define PROJECT_VERSION std::string("alpha-v0.2.5")
 
 #include <cstdio>
 #include <cstdlib>
@@ -616,9 +616,8 @@ int main(int argc, char *argv[]) {
     std::string SUFFIX = FileTypeSuffix[type];
     std::replace(SUFFIX.begin(), SUFFIX.end(), '.', '_');
     lastBuildPure+=SUFFIX;
-    
-    std::cout << f("(INFO) 上次构建的项目：{YELLOW} \n", lastBuildPure);
 
+    std::cout << f("(INFO) 上次构建的项目：{YELLOW} \n", lastBuildPure);
     if (!fileExist((std::string(lastBuildPure) + std::string(EXE_SUFFIX)).c_str()))
       cout << f("(WARN) 不存在构建文件，此时推荐使用 {YELLOW} 命令，以减少错误警报！\n", "make");
     if (!build(lastBuild))
